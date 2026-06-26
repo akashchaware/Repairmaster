@@ -246,7 +246,8 @@ function normalizeState(source) {
     taxPercent: r.taxPercent || 0,
     taxAmount: r.taxAmount || 0,
     serviceChargePercent: r.serviceChargePercent || 0,
-    serviceChargeAmount: r.serviceChargeAmount || 0
+    serviceChargeAmount: r.serviceChargeAmount || 0,
+    crmNotes: r.crmNotes || []
   }));
   const defaultApps = structuredClone(defaultState.applications);
   const storedApps = source.applications || [];
@@ -296,7 +297,20 @@ function commissionFor(price) {
 }
 
 function activeRequest() {
-  return state.requests.find((request) => request.id === state.activeRequestId) || state.requests[0];
+  const matched = state.requests.find((request) => request.id === state.activeRequestId);
+  if (matched) return matched;
+  // Role-specific fallback: show first assigned request
+  const user = state.activeUser;
+  if (user && user.role === 'technician') {
+    return state.requests.find(r => r.pickupTech === user.name && r.statusIndex < 14) || state.requests[0];
+  }
+  if (user && user.role === 'repairmaster') {
+    return state.requests.find(r => r.repairPartner === user.name && r.statusIndex < 14) || state.requests[0];
+  }
+  if (user && user.role === 'customer') {
+    return state.requests.find(r => r.customer === user.name) || state.requests[0];
+  }
+  return state.requests[0];
 }
 
 function showToast(message) {
@@ -433,6 +447,16 @@ function renderProgress() {
 }
 
 function renderCustomer() {
+  // Detail mode
+  if (state.custDetailMode) {
+    document.getElementById("custDashboard").style.display = 'none';
+    document.getElementById("custRequestView").style.display = '';
+    renderCustDetail(activeRequest());
+    return;
+  }
+  document.getElementById("custDashboard").style.display = '';
+  document.getElementById("custRequestView").style.display = 'none';
+
   const request = activeRequest();
   document.getElementById("activeRequestLabel").textContent = request.id;
   document.getElementById("activeRequestMeta").textContent = `${request.model} - ${request.issue}`;
@@ -586,8 +610,27 @@ function renderCustomer() {
   // Show customer panel when there's an active request for this customer
   const panel = document.getElementById("customerPanel");
   if (panel) {
-    const hasActive = state.requests.some(r => r.customer === (state.activeUser ? state.activeUser.name : ""));
-    panel.style.display = hasActive ? "block" : "none";
+    const myName = state.activeUser ? state.activeUser.name : "";
+    const myRequests = state.requests.filter(r => r.customer === myName);
+    panel.style.display = myRequests.length ? "block" : "none";
+  }
+
+  // Customer request list (if multiple requests)
+  const custName = state.activeUser?.name || '';
+  const myReqs = state.requests.filter(r => r.customer === custName);
+  const reqListEl = document.getElementById("custRequestsList");
+  if (reqListEl) {
+    if (myReqs.length <= 1) {
+      reqListEl.style.display = 'none';
+    } else {
+      reqListEl.style.display = '';
+      reqListEl.innerHTML = myReqs.map(r => `
+        <button class="request-row" onclick="navigateTo('#customer/request/${r.id}')" style="text-align:left;width:100%">
+          <div><h3>${r.id} — ${r.model}</h3><p>${r.issue}</p></div>
+          <span class="status-pill">${statuses[r.statusIndex]}</span>
+        </button>
+      `).join('');
+    }
   }
 
   renderLocalDeals();
@@ -603,6 +646,78 @@ function renderCustomer() {
     `;
   }).join("");
 }
+
+function renderCustDetail(req) {
+  if (!req) { document.getElementById("custRequestContent").innerHTML = '<div class="empty-state">Request not found</div>'; return; }
+  document.getElementById("custDetailTitle").textContent = `${req.id} — ${req.model}`;
+  document.getElementById("custDetailStatus").textContent = statuses[req.statusIndex];
+  const content = document.getElementById("custRequestContent");
+  const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+  const customerMsgs = {
+    0: "Your request has been submitted. A coordinator will review and accept it shortly.",
+    1: "Your request is under review. Please provide your back cover and glass preferences below to help us prepare an accurate quotation.",
+    2: "Your quotation is ready. Review the details and approve to proceed.",
+    3: "Quotation approved! We'll schedule a pickup for your device.",
+    4: "A technician has been assigned for pickup. Keep your device ready.",
+    5: "Device picked up. Our repairmaster is inspecting it.",
+    6: "Your device is under diagnosis.",
+    7: "Repair in progress.",
+    8: "Quality check in progress.",
+    9: "Invoice ready — complete your payment to proceed.",
+    10: "Payment received. We'll prepare your device for delivery.",
+    11: "Your device is ready for delivery.",
+    12: "Your device is out for delivery!",
+    13: "Device delivered. Thank you for choosing RepairingMaster!",
+    14: "Request closed. Thank you!"
+  };
+  const timeStr = req.createdAt ? new Date(req.createdAt).toLocaleDateString() : '—';
+  content.innerHTML = `
+    <div class="rd-action-card" style="border-left:4px solid var(--teal)">
+      <div class="rd-action-header"><span class="rd-action-step">Status</span></div>
+      <p class="rd-action-msg">${customerMsgs[req.statusIndex] || ''}</p>
+    </div>
+    <div class="rd-grid">
+      <div class="rd-info-card">
+        <p class="eyebrow">Request</p>
+        <table class="coord-info-table">
+          <tr><td>ID</td><td>${escHtml(req.id)}</td></tr>
+          <tr><td>Created</td><td>${timeStr}</td></tr>
+          <tr><td>Status</td><td>${statuses[req.statusIndex]}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Device</p>
+        <table class="coord-info-table">
+          <tr><td>Type</td><td>${escHtml(req.deviceType || 'Smartphone')}</td></tr>
+          <tr><td>Brand</td><td>${req.brand || '—'}</td></tr>
+          <tr><td>Model</td><td>${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Quotation</p>
+        ${req.quoteAmount ? '<p style="font-size:24px;font-weight:700;color:var(--teal)">' + formatCurrency(req.quoteAmount) + '</p>' : '<p style="color:var(--muted)">Awaiting quotation</p>'}
+        ${req.quoteItems && req.quoteItems.length ? '<div style="font-size:12px">' + req.quoteItems.map(i => '<div style="display:flex;justify-content:space-between;padding:2px 0"><span>' + escHtml(i.name) + '</span><span>' + formatCurrency(i.cost) + '</span></div>').join('') + '</div>' : ''}
+      </div>
+    </div>
+    <div class="rd-info-card" style="margin-top:14px">
+      <p class="eyebrow">Notes from team</p>
+      <div id="custCrmNotesList">${(req.crmNotes || []).length ? (req.crmNotes || []).map(n => '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--line)"><strong>' + escHtml(n.author || '—') + '</strong> <span style="color:var(--muted)">' + (n.date || '') + '</span><br>' + escHtml(n.text) + '</div>').join('') : '<span style="color:var(--muted);font-size:12px">No notes from the team yet</span>'}</div>
+    </div>
+    ${imgs.length ? '<div class="rd-info-card" style="margin-top:14px"><p class="eyebrow">Photos</p><div class="rd-photos">' + imgs.map(u => '<img src="' + u + '" loading="lazy">').join('') + '</div></div>' : ''}
+    <div class="timeline" style="margin-top:16px" id="custDetailTimeline"></div>
+  `;
+  const tl = document.getElementById("custDetailTimeline");
+  if (tl) {
+    tl.innerHTML = statuses.map((status, index) => {
+      const stateClass = index < req.statusIndex ? "done" : index === req.statusIndex ? "current" : "";
+      const note = index < req.statusIndex ? "Completed" : index === req.statusIndex ? "Current step" : "Upcoming";
+      return '<div class="timeline-item ' + stateClass + '"><span class="timeline-dot"></span><div><strong>' + status + '</strong><br><span>' + note + '</span></div></div>';
+    }).join('');
+  }
+}
+
+document.getElementById("custDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('customer'));
 
 // Coordinator action needed per status
 const COORD_ACTIONS = {
@@ -817,8 +932,29 @@ function renderCoordinatorRequestDetail(req) {
       <p class="eyebrow">Device photos</p>
       <div class="rd-photos">${imgs.map(url => `<img src="${url}" alt="Device photo" loading="lazy">`).join('')}</div>
     </div>` : ''}
+    <div class="rd-info-card" style="margin-top:14px">
+      <p class="eyebrow">CRM Notes</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="crmNoteInput" placeholder="Add a note..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+        <button id="crmNoteAddBtn" class="primary-action" style="white-space:nowrap">Add Note</button>
+      </div>
+      <div id="crmNotesList">${(req.crmNotes || []).map(n => '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--line)"><strong>' + escHtml(n.author || '—') + '</strong> <span style="color:var(--muted)">' + (n.date || '') + '</span><br>' + escHtml(n.text) + '</div>').join('') || '<span style="color:var(--muted);font-size:12px">No notes yet</span>'}</div>
+    </div>
   `;
+  document.getElementById("crmNoteAddBtn")?.addEventListener("click", () => {
+    const input = document.getElementById("crmNoteInput");
+    if (!input || !input.value.trim()) return;
+    const req2 = activeRequest();
+    if (!req2) return;
+    if (!req2.crmNotes) req2.crmNotes = [];
+    req2.crmNotes.push({ text: input.value.trim(), author: state.activeUser?.name || 'Unknown', date: new Date().toLocaleString() });
+    input.value = '';
+    saveState();
+    renderCoordinatorRequestDetail(req2);
+    showToast('Note added');
+  });
 }
+
 
 function renderDetailActions(req) {
   const si = req.statusIndex;
@@ -904,6 +1040,14 @@ function renderTechnician() {
   }
   document.getElementById("techDashboard").style.display = '';
   document.getElementById("techRequestView").style.display = 'none';
+
+  const techName2 = state.activeUser?.name || '';
+  const myJobs = state.requests.filter(r => r.pickupTech === techName2);
+  const myActive = myJobs.filter(r => r.statusIndex >= 1 && r.statusIndex < 11).length;
+  const myDone = myJobs.filter(r => r.statusIndex >= 11 && r.statusIndex < 14).length;
+  document.getElementById("techAssignedCount").textContent = myJobs.length;
+  document.getElementById("techCompletedCount").textContent = myDone;
+  document.getElementById("techActiveCount").textContent = myActive;
 
   const request = activeRequest();
   document.getElementById("techJobTitle").textContent = request ? `Pickup ${request.id}` : "No active job";
@@ -1083,6 +1227,14 @@ function renderRepairingMaster() {
   document.getElementById("rmDashboard").style.display = '';
   document.getElementById("rmRequestView").style.display = 'none';
 
+  const rmName2 = state.activeUser?.name || '';
+  const myRms = state.requests.filter(r => r.repairPartner === rmName2);
+  const myRmActive = myRms.filter(r => r.statusIndex >= 6 && r.statusIndex < 11).length;
+  const myRmDone = myRms.filter(r => r.statusIndex >= 13).length;
+  document.getElementById("rmAssignedCount").textContent = myRms.length;
+  document.getElementById("rmCompletedCount").textContent = myRmDone;
+  document.getElementById("rmInProgressCount").textContent = myRmActive;
+
   const request = activeRequest();
   // Show active request on bench
   const benchTitle = document.querySelector("#repairmaster .diagnosis-card h2");
@@ -1216,9 +1368,30 @@ function renderRmDetail(req) {
 document.getElementById("rmDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('rm'));
 
 function renderAdmin() {
+  // Detail mode
+  if (state.adminDetailMode) {
+    document.getElementById("adminDashboard").style.display = 'none';
+    document.getElementById("adminRequestView").style.display = '';
+    renderAdminDetail(activeRequest());
+    return;
+  }
+  document.getElementById("adminDashboard").style.display = '';
+  document.getElementById("adminRequestView").style.display = 'none';
+
   const requests = state.requests || [];
   const marketplace = state.marketplace || [];
   const applications = state.applications || [];
+
+  // Admin request list
+  const adminReqList = document.getElementById("adminRequestsList");
+  if (adminReqList) {
+    adminReqList.innerHTML = requests.filter(r => r.statusIndex < 14).map(r => `
+      <button class="request-row" onclick="navigateTo('#admin/request/${r.id}')" style="text-align:left;width:100%">
+        <div><h3>${r.id} — ${r.model}</h3><p>${r.customer} | ${r.issue}</p></div>
+        <span class="status-pill">${statuses[r.statusIndex]}</span>
+      </button>
+    `).join('') + (requests.filter(r => r.statusIndex >= 14).length ? '<div style="font-size:11px;color:var(--muted);padding:8px 12px">' + requests.filter(r => r.statusIndex >= 14).length + ' closed requests</div>' : '<div class="empty-state">No open requests</div>');
+  }
 
   // Real metrics
   const totalCommission = requests.reduce((s, r) => s + commissionFor(r.quoteAmount), 0) + marketplace.filter((m) => m.sold).reduce((s, m) => s + commissionFor(displayPrice(m.basePrice)), 0);
@@ -1381,6 +1554,82 @@ function renderAdmin() {
     };
   }
 }
+
+function renderAdminDetail(req) {
+  if (!req) { document.getElementById("adminRequestContent").innerHTML = '<div class="empty-state">Request not found</div>'; return; }
+  document.getElementById("adminDetailTitle").textContent = `${req.id} — ${req.model}`;
+  document.getElementById("adminDetailStatus").textContent = statuses[req.statusIndex];
+  const content = document.getElementById("adminRequestContent");
+  const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+  const timeStr = req.createdAt ? new Date(req.createdAt).toLocaleDateString() : '—';
+  content.innerHTML = `
+    <div class="rd-grid">
+      <div class="rd-info-card">
+        <p class="eyebrow">Customer</p>
+        <table class="coord-info-table">
+          <tr><td>Name</td><td>${escHtml(req.customer)}</td></tr>
+          <tr><td>Phone</td><td>${escHtml(req.phone || '—')}</td></tr>
+          <tr><td>Address</td><td>${escHtml(req.address)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Device</p>
+        <table class="coord-info-table">
+          <tr><td>ID</td><td>${escHtml(req.id)}</td></tr>
+          <tr><td>Created</td><td>${timeStr}</td></tr>
+          <tr><td>Type</td><td>${escHtml(req.deviceType || 'Smartphone')}</td></tr>
+          <tr><td>Brand</td><td>${req.brand || '—'}</td></tr>
+          <tr><td>Model</td><td>${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+          <tr><td>Status</td><td>${statuses[req.statusIndex]}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Assignment</p>
+        <table class="coord-info-table">
+          <tr><td>Pickup Tech</td><td>${escHtml(req.pickupTech || '—')}</td></tr>
+          <tr><td>Repair Partner</td><td>${escHtml(req.repairPartner || '—')}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Financials</p>
+        ${req.quoteAmount ? '<p style="font-size:24px;font-weight:700;color:var(--teal)">' + formatCurrency(req.quoteAmount) + '</p>' : '<p style="color:var(--muted)">No quote yet</p>'}
+        <table class="coord-info-table">
+          <tr><td>Payment</td><td>${req.paymentStatus || '—'}</td></tr>
+          <tr><td>Method</td><td>${req.paymentMethod || '—'}</td></tr>
+        </table>
+      </div>
+    </div>
+    ${imgs.length ? '<div class="rd-info-card" style="margin-top:14px"><p class="eyebrow">Photos</p><div class="rd-photos">' + imgs.map(u => '<img src="' + u + '" loading="lazy">').join('') + '</div></div>' : ''}
+    <div class="rd-info-card" style="margin-top:14px">
+      <p class="eyebrow">CRM Notes</p>
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <input id="adminCrmNoteInput" placeholder="Add a note..." style="flex:1;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px">
+        <button id="adminCrmNoteAddBtn" class="primary-action" style="white-space:nowrap">Add Note</button>
+      </div>
+      <div id="adminCrmNotesList">${(req.crmNotes || []).map(n => '<div style="font-size:12px;padding:6px 0;border-bottom:1px solid var(--line)"><strong>' + escHtml(n.author || '—') + '</strong> <span style="color:var(--muted)">' + (n.date || '') + '</span><br>' + escHtml(n.text) + '</div>').join('') || '<span style="color:var(--muted);font-size:12px">No notes yet</span>'}</div>
+    </div>
+    <div class="timeline" style="margin-top:16px">${statuses.map((s, i) => {
+      const sc = i < req.statusIndex ? "done" : i === req.statusIndex ? "current" : "";
+      const note = i < req.statusIndex ? "Completed" : i === req.statusIndex ? "Current step" : "Upcoming";
+      return '<div class="timeline-item ' + sc + '"><span class="timeline-dot"></span><div><strong>' + s + '</strong><br><span>' + note + '</span></div></div>';
+    }).join('')}</div>
+  `;
+  document.getElementById("adminCrmNoteAddBtn")?.addEventListener("click", () => {
+    const input = document.getElementById("adminCrmNoteInput");
+    if (!input || !input.value.trim()) return;
+    const req2 = activeRequest();
+    if (!req2) return;
+    if (!req2.crmNotes) req2.crmNotes = [];
+    req2.crmNotes.push({ text: input.value.trim(), author: state.activeUser?.name || 'Admin', date: new Date().toLocaleString() });
+    input.value = '';
+    saveState();
+    renderAdminDetail(req2);
+    showToast('Note added');
+  });
+}
+
+document.getElementById("adminDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('admin'));
 
 function renderJobPostings() {
   const list = document.getElementById("jobPostingList");
