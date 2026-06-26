@@ -130,6 +130,13 @@ button {
   color: #ffffff;
 }
 
+.login-helper {
+  color: #9eb5c1;
+  font-size: 12px;
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
 .login-left input,
 .login-left select {
   margin-top: 6px;
@@ -152,43 +159,66 @@ button {
   color: #9eb5c1;
 }
 
-.apply-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.apply-grid form {
-  background: #223644;
-  border: 1px solid #355061;
-  border-radius: 8px;
-  padding: 10px;
-  display: grid;
+.role-pills {
+  display: flex;
   gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
 }
 
-.apply-grid input,
-.apply-grid select {
+.role-pill {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #355061;
+  border-radius: 6px;
+  background: #1a2d39;
+  color: #9eb5c1;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 8px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.role-pill.active {
+  background: #25b4a8;
+  border-color: #25b4a8;
+  color: #ffffff;
+}
+
+.app-form {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.app-form label {
+  color: #d9e7eb;
+  font-size: 12px;
+  margin: 0;
+}
+
+.app-form input,
+.app-form select,
+.app-form textarea {
+  margin-top: 4px;
   font-size: 12px;
   min-height: 34px;
   padding: 6px 8px;
-}
-
-.apply-grid button {
-  border: 0;
-  border-radius: 6px;
-  background: var(--teal);
+  background: #223644;
+  border-color: #355061;
   color: #ffffff;
-  font-size: 12px;
-  font-weight: 800;
-  padding: 6px;
-  min-height: 30px;
-  cursor: pointer;
 }
 
-.apply-grid button:hover {
-  background: var(--teal-dark);
+.app-form textarea {
+  min-height: 60px;
+  resize: vertical;
+}
+
+.app-form .primary-action {
+  margin-top: 4px;
+  font-size: 13px;
+  min-height: 38px;
 }
 
 .brand-logo {
@@ -1415,6 +1445,72 @@ input[type="file"]::-webkit-file-upload-button:hover {
   padding: 40px 20px;
   color: var(--muted);
   font-style: italic;
+}
+
+.app-card {
+  border: 1px solid var(--line);
+  background: #fbfcfd;
+  border-radius: 8px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.app-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-card-header > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-role-tag {
+  background: #e8f4f3;
+  color: var(--teal-dark);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.app-card-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.app-detail {
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.app-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-card-actions button {
+  flex: 1;
+  min-width: 120px;
+}
+
+.pill-approved {
+  background: #e0f2e8;
+  color: var(--green);
+}
+
+.pill-pending {
+  background: #fff3d6;
+  color: var(--amber);
 }
 
 .appr-btn,

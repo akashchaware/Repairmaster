@@ -48,12 +48,14 @@ const portalNames = {
   service: "Customer Access",
   marketplace: "Device on sell",
   technician: "Technician Portal",
-  repairmaster: "RepairMaster Portal",
+  repairmaster: "RepairingMaster Portal",
   coordinator: "Coordinator Portal",
   admin: "Admin Portal"
 };
 
 const defaultDeviceIcon = "image/device-repair.png";
+
+let state = {};
 
 function displayPrice(basePrice) {
   return Math.round(Number(basePrice || 0) * (1 + ownerCommissionRate));
@@ -80,10 +82,7 @@ const defaultState = {
   activeUser: null,
   activeRequestId: "RM-1024",
   applications: [
-    { name: "Ravi Kumar", role: "Technician", location: "Mumbai West", status: "Approved" },
-    { name: "FixHub Andheri", role: "RepairMaster", location: "Mumbai West", status: "Approved" },
-    { name: "Ananya Rao", role: "Coordinator", location: "Mumbai West", status: "Approved" },
-    { name: "Admin Team", role: "Admin", location: "All India", status: "Approved" }
+    { name: "Admin Team", email: "admin@repairingmaster.in", phone: "+91-9999999999", role: "Admin", location: "All India", details: { "Qualifications & reason": "Platform operations manager" }, status: "Approved" }
   ],
   minServiceFee: 150,
   taxPercent: 18,
@@ -200,18 +199,16 @@ const vendors = [
   { name: "Prime Mobile Lab Noida", score: "89%", jobs: 29 }
 ];
 
-let state = loadState();
 let marketFilter = "All";
 
-function loadState() {
-  const stored = localStorage.getItem(storageKey);
-  if (!stored) return structuredClone(defaultState);
-
+async function loadState() {
   try {
-    return normalizeState(JSON.parse(stored));
-  } catch {
-    return structuredClone(defaultState);
-  }
+    const { data } = await supabase.from('app_state').select('data').eq('id', 1).single();
+    if (data && data.data && Object.keys(data.data).length > 1) {
+      return normalizeState(data.data);
+    }
+  } catch (e) { /* fall through */ }
+  return structuredClone(defaultState);
 }
 
 function normalizeState(source) {
@@ -257,8 +254,22 @@ function normalizeState(source) {
   };
 }
 
-function saveState() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
+async function saveState() {
+  try {
+    const dataToSave = {
+      requests: state.requests || [],
+      marketplace: state.marketplace || [],
+      applications: state.applications || [],
+      marketOrders: state.marketOrders || [],
+      repairParts: state.repairParts || [],
+      serviceChargePercent: state.serviceChargePercent || 10,
+      baseInspectionFee: state.baseInspectionFee || 499,
+      taxPercent: state.taxPercent || 18
+    };
+    await supabase.from('app_state').upsert({ id: 1, data: dataToSave });
+  } catch (e) {
+    console.error('Supabase save failed:', e);
+  }
 }
 
 function formatCurrency(amount) {
@@ -298,7 +309,7 @@ function switchView(view) {
     customer: "Customer App",
     coordinator: "Coordinator Dashboard",
     technician: "Technician App",
-    repairmaster: "RepairMaster Portal",
+    repairmaster: "RepairingMaster Portal",
     admin: "Admin Console",
     marketplace: "Device on sell"
   };
@@ -325,6 +336,7 @@ function loginPortal(portal) {
   state.activeView = portalLanding[portal];
   document.getElementById("loginScreen").classList.add("hidden");
   document.getElementById("appShell").classList.remove("hidden");
+  document.getElementById("resetDemo").classList.toggle("hidden", portal !== "admin");
   applyPortalAccess();
   updateUserBadge();
   renderAll();
@@ -332,11 +344,16 @@ function loginPortal(portal) {
 }
 
 function updateUserBadge() {
+  const user = state.activeUser || { name: "User", email: "", role: state.activePortal };
+  document.getElementById("userName").textContent = user.name;
+  document.getElementById("userRoleBadge").textContent = user.role || state.activePortal || "";
+  document.getElementById("userAvatar").textContent = (user.name || "U").charAt(0).toUpperCase();
 }
 
-function logoutPortal() {
+async function logoutPortal() {
   state.activePortal = null;
-  saveState();
+  await saveState();
+  await signOutUser();
   document.getElementById("appShell").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
 }
@@ -465,10 +482,10 @@ function renderCustomer() {
     }
   }
 
-  // Show customer panel only if there's an active request (statusIndex > 0 or requests exist)
+  // Show customer panel when there's an active request for this customer
   const panel = document.getElementById("customerPanel");
   if (panel) {
-    const hasActive = state.requests.some(r => r.customer === (state.activeUser ? state.activeUser.name : "") && r.statusIndex > 0);
+    const hasActive = state.requests.some(r => r.customer === (state.activeUser ? state.activeUser.name : ""));
     panel.style.display = hasActive ? "block" : "none";
   }
 
@@ -575,7 +592,7 @@ function renderTechnician() {
     ["accepted", "Technician accepted job"],
     ["otp", "Customer OTP verified"],
     ["photos", "Device photos captured"],
-    ["handover", "Device handed to RepairMaster"],
+    ["handover", "Device handed to RepairingMaster"],
     ["delivery", "Delivery confirmation"]
   ];
 
@@ -626,7 +643,7 @@ function renderTechnician() {
   }
 }
 
-function renderRepairMaster() {
+function renderRepairingMaster() {
   // Render dynamic parts grid
   const grid = document.getElementById("partsGrid");
   if (grid) {
@@ -706,31 +723,62 @@ function renderAdmin() {
     </div>
   `).join("");
 
-  document.getElementById("applicationList").innerHTML = state.applications.map((app, i) => `
-    <div class="vendor-row">
-      <div><strong>${app.name}</strong><br><small>${app.role} | ${app.location}</small></div>
-      <div style="display:flex;gap:6px;align-items:center">
-        <span class="status-pill">${app.status}</span>
-        ${app.status === "Pending" ? `<button class="appr-btn" data-appr="${i}">Approve</button>` : ""}
-        ${app.status === "Approved" ? `<button class="rej-btn" data-rej="${i}">Revoke</button>` : ""}
+  document.getElementById("applicationList").innerHTML = state.applications.map((app, i) => {
+    const detailsHtml = app.details ? Object.entries(app.details).filter(([_, v]) => v).map(([k, v]) => `<span class="app-detail">${k}: ${v}</span>`).join("") : "";
+    return `
+    <div class="app-card">
+      <div class="app-card-header">
+        <div>
+          <strong>${app.name}</strong>
+          <span class="app-role-tag">${app.role}</span>
+        </div>
+        <span class="status-pill ${app.status === "Approved" ? "pill-approved" : "pill-pending"}">${app.status}</span>
+      </div>
+      <div class="app-card-body">
+        <span class="app-detail">Email: ${app.email || "—"}</span>
+        <span class="app-detail">Phone: ${app.phone || "—"}</span>
+        <span class="app-detail">Location: ${app.location}</span>
+        ${detailsHtml}
+      </div>
+      <div class="app-card-actions">
+        ${app.status === "Pending" ? `<button class="appr-btn" data-appr="${i}">✅ Verify &amp; Approve</button>` : ""}
+        ${app.status === "Approved" ? `<button class="rej-btn" data-rej="${i}">⛔ Revoke Access</button>` : ""}
+        ${app.status === "Pending" ? `<button class="rej-btn" data-rej-app="${i}">✖ Reject</button>` : ""}
       </div>
     </div>
-  `).join("");
+  `}).join("");
 
   document.querySelectorAll(".appr-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.applications[Number(btn.dataset.appr)].status = "Approved";
+    btn.addEventListener("click", async () => {
+      const i = Number(btn.dataset.appr);
+      state.applications[i].status = "Approved";
+      const dbId = state.applications[i].id;
+      if (dbId) await updateApplication(dbId, { status: "Approved" }).catch(() => {});
       saveState();
       renderAll();
-      showToast("Application approved");
+      showToast("Application approved — employee can now sign in");
     });
   });
-  document.querySelectorAll(".rej-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      state.applications[Number(btn.dataset.rej)].status = "Pending";
+  document.querySelectorAll(".rej-btn[data-rej]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const i = Number(btn.dataset.rej);
+      state.applications[i].status = "Pending";
+      const dbId = state.applications[i].id;
+      if (dbId) await updateApplication(dbId, { status: "Pending" }).catch(() => {});
       saveState();
       renderAll();
       showToast("Application access revoked");
+    });
+  });
+  document.querySelectorAll(".rej-btn[data-rej-app]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const i = Number(btn.dataset.rejApp);
+      state.applications[i].status = "Rejected";
+      const dbId = state.applications[i].id;
+      if (dbId) await updateApplication(dbId, { status: "Rejected" }).catch(() => {});
+      saveState();
+      renderAll();
+      showToast("Application rejected");
     });
   });
 
@@ -889,7 +937,7 @@ function renderAll() {
   renderCustomer();
   renderCoordinator();
   renderTechnician();
-  renderRepairMaster();
+  renderRepairingMaster();
   renderAdmin();
   renderMarketplace();
   renderLocalDeals();
@@ -956,56 +1004,168 @@ function isEmployeeRole(role) {
 }
 
 function verifyEmployeeAccess(role) {
-  const roleLabel = role === "repairmaster" ? "RepairMaster" : role.charAt(0).toUpperCase() + role.slice(1);
+  const roleLabel = role === "repairmaster" ? "RepairingMaster" : role.charAt(0).toUpperCase() + role.slice(1);
   return state.applications.some((a) => a.role === roleLabel && a.status === "Approved");
 }
 
 document.getElementById("operationSelect").addEventListener("change", (event) => switchView(event.target.value));
 
-document.getElementById("unifiedLoginForm").addEventListener("submit", (event) => {
+document.getElementById("unifiedLoginForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const role = document.getElementById("loginRole").value;
   const email = document.getElementById("loginEmail").value.trim();
   const name = document.getElementById("loginName").value.trim();
   const city = document.getElementById("loginCity").value.trim();
+  const password = document.getElementById("loginPassword").value.trim();
+  const isEmployeeTab = document.querySelector(".login-tab.active").dataset.tab === "employee";
   if (!email) {
     showToast("Please enter your email address");
+    return;
+  }
+  if (!email.includes("@") || !email.includes(".")) {
+    showToast("Enter a valid email address (e.g. yourname@gmail.com)");
     return;
   }
   if (!name) {
     showToast("Please enter your name");
     return;
   }
-  state.activeUser = { name, email, role, city: city || "" };
-  if (isEmployeeRole(role) && !verifyEmployeeAccess(role)) {
-    showToast("Access denied. No approved application found for this role. Apply first.");
+  if (isEmployeeTab && !isEmployeeRole(role)) {
+    showToast("Select an employee role (Technician, RepairingMaster, Coordinator, or Admin)");
     return;
   }
-  loginPortal(role);
+  if (isEmployeeRole(role) && !password) {
+    showToast("Please create a password for your account");
+    return;
+  }
+  try {
+    if (isEmployeeRole(role)) {
+      // Employee — sign in (must already have an account)
+      const { user } = await signInWithEmail(email, password);
+      const profile = await fetchProfile(user.id);
+      if (!profile) {
+        await supabase.from('profiles').upsert({ id: user.id, email, name, role, city: city || '' });
+      }
+      state.activeUser = profile || { name, email, role, city: city || '' };
+      // Verify approved application
+      if (!await checkEmployeeAccess(user.id, role)) {
+        showToast("Access denied. No approved application found. Apply first.");
+        await signOutUser();
+        return;
+      }
+    } else {
+      // Customer — sign up (creates account)
+      const { user } = await signUpWithEmail(email, password, { name, email, role: 'customer', city: city || '' });
+      state.activeUser = { name, email, role: 'customer', city: city || '' };
+    }
+    loginPortal(isEmployeeRole(role) ? role : 'customer');
+  } catch (err) {
+    if (err.message && err.message.includes('already registered')) {
+      // User exists — try signing in
+      try {
+        const { user } = await signInWithEmail(email, password);
+        const profile = await fetchProfile(user.id);
+        state.activeUser = profile || { name, email, role, city: city || '' };
+        if (isEmployeeRole(role) && !await checkEmployeeAccess(user.id, role)) {
+          showToast("Access denied. No approved application found.");
+          await signOutUser();
+          return;
+        }
+        loginPortal(isEmployeeRole(role) ? role : (profile?.role || 'customer'));
+      } catch (e2) {
+        showToast(e2.message || "Login failed. Check your password.");
+      }
+    } else {
+      showToast(err.message || "Authentication failed");
+    }
+  }
 });
 
-document.querySelectorAll("[data-employee-role]").forEach((form) => {
-  form.addEventListener("submit", (event) => {
-    event.preventDefault();
-    const roleKey = form.dataset.employeeRole;
-    const roleLabel = roleKey === "repairmaster" ? "RepairMaster" : roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
-    const [nameInput, locationSelect] = form.querySelectorAll("input, select");
-    const name = nameInput.value.trim();
-    if (!name) {
-      showToast("Please enter your full name");
-      return;
+const roleFields = {
+  technician: [
+    { id: "appExp", label: "Years of experience", type: "number", placeholder: "e.g. 3" },
+    { id: "appSpec", label: "Specialization", type: "select", options: ["Mobile Phones", "Laptops", "TV & Monitors", "All Devices"] }
+  ],
+  repairmaster: [
+    { id: "appStore", label: "Store / workshop name", type: "text", placeholder: "e.g. FixHub Andheri" },
+    { id: "appOwner", label: "Owner name", type: "text", placeholder: "Full name" },
+    { id: "appYearsBiz", label: "Years in business", type: "number", placeholder: "e.g. 5" },
+    { id: "appTechs", label: "Number of technicians", type: "number", placeholder: "e.g. 3" }
+  ],
+  coordinator: [
+    { id: "appCoordExp", label: "Previous experience", type: "textarea", placeholder: "Describe your relevant experience in logistics / coordination" }
+  ],
+  admin: [
+    { id: "appAdminReason", label: "Qualifications & reason", type: "textarea", placeholder: "Why do you want to be an admin? Describe your qualifications." }
+  ]
+};
+
+function renderDynamicFields(role) {
+  const container = document.getElementById("appDynamicFields");
+  if (!container) return;
+  const fields = roleFields[role] || [];
+  container.innerHTML = fields.map(f => {
+    if (f.type === "select") {
+      return `<label>${f.label} <select id="${f.id}">${f.options.map(o => `<option>${o}</option>`).join("")}</select></label>`;
     }
-    state.applications.unshift({
-      name,
-      role: roleLabel,
-      location: locationSelect.value,
-      status: "Pending"
-    });
-    saveState();
-    renderHotDeals();
-    showToast(`${roleLabel} application submitted for ${locationSelect.value}`);
+    if (f.type === "textarea") {
+      return `<label>${f.label} <textarea id="${f.id}" placeholder="${f.placeholder}"></textarea></label>`;
+    }
+    return `<label>${f.label} <input id="${f.id}" type="${f.type}" placeholder="${f.placeholder || ""}"></label>`;
+  }).join("");
+}
+
+// Role pill switching
+document.querySelectorAll(".role-pill").forEach(pill => {
+  pill.addEventListener("click", () => {
+    document.querySelectorAll(".role-pill").forEach(p => p.classList.remove("active"));
+    pill.classList.add("active");
+    renderDynamicFields(pill.dataset.role);
   });
 });
+
+// Application form submit
+document.getElementById("applicationForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const activePill = document.querySelector(".role-pill.active");
+  const roleKey = activePill.dataset.role;
+  const roleLabel = roleKey === "repairmaster" ? "RepairingMaster" : roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
+  const name = document.getElementById("appName").value.trim();
+  const email = document.getElementById("appEmail").value.trim();
+  const phone = document.getElementById("appPhone").value.trim();
+  const location = document.getElementById("appLocation").value;
+  if (!name || !email || !phone) {
+    showToast("Please fill in name, email, and phone");
+    return;
+  }
+  const details = {};
+  (roleFields[roleKey] || []).forEach(f => {
+    const el = document.getElementById(f.id);
+    if (el) details[f.label] = el.value;
+  });
+  // Save to Supabase
+  try {
+    const session = await getCurrentSession();
+    const app = await createApplication({
+      user_id: session?.user?.id || null,
+      name, email, phone,
+      role: roleLabel,
+      location,
+      details,
+      status: "Pending"
+    });
+    state.applications.unshift({ ...app, id: undefined });
+  } catch (e) {
+    state.applications.unshift({ name, email, phone, role: roleLabel, location, details, status: "Pending" });
+  }
+  saveState();
+  renderHotDeals();
+  document.getElementById("applicationForm").reset();
+  showToast(`${roleLabel} application submitted for ${location}`);
+});
+
+// Init dynamic fields on page load
+renderDynamicFields("technician");
 
 document.getElementById("logoutButton").addEventListener("click", logoutPortal);
 document.getElementById("sidebarLogoutBtn").addEventListener("click", logoutPortal);
@@ -1027,12 +1187,13 @@ document.getElementById("advanceStatus").addEventListener("click", () => {
   showToast(`${request.id} moved to ${statuses[request.statusIndex]}`);
 });
 
-document.getElementById("resetDemo").addEventListener("click", () => {
+document.getElementById("resetDemo").addEventListener("click", async () => {
   if (!confirm("Reset all demo data? This will clear all requests, applications, and marketplace changes.")) return;
   state = structuredClone(defaultState);
   document.getElementById("loginScreen").classList.remove("hidden");
   document.getElementById("appShell").classList.add("hidden");
-  saveState();
+  await saveState();
+  await resetAllData();
   showToast("Demo data reset");
 });
 
@@ -1087,7 +1248,7 @@ document.getElementById("approveQuote").addEventListener("click", () => {
   showToast("Quotation approved");
 });
 
-document.getElementById("uploadConditionBtn").addEventListener("click", () => {
+document.getElementById("uploadConditionBtn").addEventListener("click", async () => {
   const input = document.getElementById("conditionInput");
   const request = activeRequest();
   if (!input.files || !input.files.length) {
@@ -1096,20 +1257,22 @@ document.getElementById("uploadConditionBtn").addEventListener("click", () => {
   }
   let loaded = 0;
   const total = input.files.length;
-  Array.from(input.files).forEach((file) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      request.conditionImages.push(e.target.result);
-      loaded++;
-      if (loaded === total) {
-        saveState();
-        renderAll();
-        showToast(`${total} condition photo(s) uploaded`);
-        input.value = "";
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+  for (const file of Array.from(input.files)) {
+    try {
+      const url = await uploadImage(file);
+      request.conditionImages.push(url);
+    } catch {
+      // fallback to data URL
+      const reader = new FileReader();
+      const url = await new Promise(r => { reader.onload = e => r(e.target.result); reader.readAsDataURL(file); });
+      request.conditionImages.push(url);
+    }
+    loaded++;
+  }
+  saveState();
+  renderAll();
+  showToast(`${total} condition photo(s) uploaded`);
+  input.value = "";
 });
 
 document.getElementById("saveRequirements").addEventListener("click", () => {
@@ -1309,7 +1472,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-document.getElementById("marketUploadForm").addEventListener("submit", (event) => {
+document.getElementById("marketUploadForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const model = document.getElementById("listingModel").value.trim();
   const basePrice = Number(document.getElementById("listingPrice").value || 0);
@@ -1324,28 +1487,30 @@ document.getElementById("marketUploadForm").addEventListener("submit", (event) =
     grade: document.getElementById("listingGrade").value,
     basePrice,
     warranty: document.getElementById("listingWarranty").value,
-    owner: activeRequest().repairPartner || "RepairMaster Partner",
+    owner: activeRequest().repairPartner || "RepairingMaster Partner",
     sold: false,
     images: [],
     currentSlide: 0
   };
   if (fileInput.files && fileInput.files.length) {
-    let loaded = 0;
-    const total = fileInput.files.length;
-    Array.from(fileInput.files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        item.images.push(e.target.result);
-        loaded++;
-        if (loaded === total) {
-          state.marketplace.unshift(item);
-          saveState();
-          renderAll();
-          showToast(`${item.model} listed at ${formatCurrency(finalPrice)}`);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of Array.from(fileInput.files)) {
+      try {
+        const url = await uploadImage(file);
+        item.images.push(url);
+      } catch {
+        const reader = new FileReader();
+        const url = await new Promise(r => { reader.onload = e => r(e.target.result); reader.readAsDataURL(file); });
+        item.images.push(url);
+      }
+    }
+  }
+  if (!item.images.length) item.images = [defaultDeviceIcon];
+  state.marketplace.unshift(item);
+  saveState();
+  renderAll();
+  showToast(`${item.model} listed at ${formatCurrency(finalPrice)}`);
+  document.getElementById("marketUploadForm").reset();
+});
   } else {
     item.images = [defaultDeviceIcon];
     state.marketplace.unshift(item);
@@ -1384,15 +1549,53 @@ document.querySelectorAll(".login-tab").forEach((tab) => {
     document.getElementById("applyLinks").style.display = isEmployee ? "" : "none";
     document.getElementById("loginCity").closest("label").style.display = isEmployee ? "none" : "";
     document.getElementById("unifiedLoginForm").querySelector("button").textContent = isEmployee ? "Sign In" : "Sign Up & Continue";
-    if (!isEmployee) document.getElementById("loginRole").value = "customer";
+    document.getElementById("loginHelper").textContent = isEmployee
+      ? "Already have an approved application? Sign in to your portal."
+      : "Sign up to book a repair or browse deals from nearby RepairingMasters";
+    // Restrict role dropdown: employee tab shows only employee roles
+    const roleSelect = document.getElementById("loginRole");
+    Array.from(roleSelect.options).forEach(opt => {
+      opt.hidden = isEmployee ? !["technician","repairmaster","coordinator","admin"].includes(opt.value) : false;
+    });
+    if (!isEmployee) {
+      roleSelect.value = "customer";
+    } else {
+      roleSelect.value = "technician";
+    }
   });
 });
 document.getElementById("roleField").style.display = "none";
 document.getElementById("applyLinks").style.display = "none";
+// On load, only show customer/marketplace in the hidden role field
+Array.from(document.getElementById("loginRole").options).forEach(opt => {
+  opt.hidden = !["customer","marketplace"].includes(opt.value);
+});
 
-if (state.activePortal) {
-  document.getElementById("loginScreen").classList.add("hidden");
-  document.getElementById("appShell").classList.remove("hidden");
-}
+// ─── App Initialization ──────────────────────────────
+(async function initApp() {
+  // Load data from Supabase (falls back to defaults)
+  Object.assign(state, await loadState());
 
-renderAll();
+  // Check for existing auth session
+  const session = await getCurrentSession();
+  if (session) {
+    const profile = await fetchProfile(session.user.id);
+    if (profile && profile.role) {
+      state.activeUser = profile;
+      state.activePortal = profile.role;
+      state.activeView = portalLanding[profile.role] || 'customer';
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("appShell").classList.remove("hidden");
+      applyPortalAccess();
+      updateUserBadge();
+      renderAll();
+      showToast(`Welcome back, ${profile.name || profile.email}`);
+      return;
+    }
+  }
+
+  // No session — show login
+  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("appShell").classList.add("hidden");
+  renderAll();
+})();
