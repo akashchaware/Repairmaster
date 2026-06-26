@@ -1298,9 +1298,28 @@ document.getElementById("applicationForm").addEventListener("submit", async (eve
   });
   // Save to Supabase
   try {
-    const session = await getCurrentSession();
+    // Sign up the applicant as a Supabase Auth user first
+    const password = document.getElementById("loginPassword").value.trim();
+    if (!password) {
+      showToast("Enter a password in the field above to create your account");
+      return;
+    }
+    let userId = null;
+    try {
+      const { user } = await signUpWithEmail(email, password, { name, email, role: roleLabel });
+      userId = user.id;
+    } catch (signUpErr) {
+      // User may already exist — try signing in to get their ID
+      try {
+        const { user } = await signInWithEmail(email, password);
+        userId = user.id;
+      } catch (signInErr) {
+        showToast("Could not create account. Check your email/password.");
+        return;
+      }
+    }
     const app = await createApplication({
-      user_id: session?.user?.id || null,
+      user_id: userId,
       name, email, phone,
       role: roleLabel,
       location,
@@ -1787,6 +1806,54 @@ document.querySelectorAll(".login-tab").forEach((tab) => {
     }
   });
 });
+
+// Testing login buttons — auto-create accounts on first use
+const TEST_CREDENTIALS = {
+  admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin',        name: 'Admin User' },
+  coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator',  name: 'Coord User' },
+  technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician',   name: 'Tech User' },
+  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster',  name: 'RM User' }
+};
+
+document.querySelectorAll(".test-login-btn").forEach(btn => {
+  btn.addEventListener("click", async () => {
+    const testRole = btn.dataset.testrole;
+    const creds = TEST_CREDENTIALS[testRole];
+    if (!creds) return;
+    btn.textContent = "⏳ Logging in...";
+    btn.disabled = true;
+    try {
+      // Try signing in first
+      let user;
+      try {
+        const result = await signInWithEmail(creds.email, creds.password);
+        user = result.user;
+      } catch {
+        // Account doesn't exist — create it
+        const result = await signUpWithEmail(creds.email, creds.password, { name: creds.name, email: creds.email, role: creds.role });
+        user = result.user;
+        // Create profile
+        await supabase.from('profiles').upsert({ id: user.id, email: creds.email, name: creds.name, role: creds.role });
+        // Create approved application
+        await supabase.from('applications').insert({
+          user_id: user.id, name: creds.name, email: creds.email, phone: '9999999999',
+          role: testRole === 'repairmaster' ? 'RepairingMaster' : testRole.charAt(0).toUpperCase() + testRole.slice(1),
+          location: 'Test City', details: {}, status: 'Approved'
+        });
+      }
+      state.activeUser = { name: creds.name, email: creds.email, role: creds.role };
+      // Fetch profile if exists
+      const profile = await fetchProfile(user.id);
+      if (profile) state.activeUser = profile;
+      loginPortal(creds.role);
+    } catch (err) {
+      showToast(`Testing login failed: ${err.message || err}`, 'error');
+      btn.textContent = "🔑 " + (testRole === 'repairmaster' ? 'RepairingMaster' : testRole.charAt(0).toUpperCase() + testRole.slice(1));
+      btn.disabled = false;
+    }
+  });
+});
+
 document.getElementById("roleField").style.display = "none";
 document.getElementById("applyLinks").style.display = "none";
 // On load, only show customer/marketplace in the hidden role field

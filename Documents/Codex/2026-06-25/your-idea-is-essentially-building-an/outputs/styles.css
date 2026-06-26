@@ -1669,6 +1669,21 @@ input[type="file"]::-webkit-file-upload-button:hover {
   color: #fff;
   border-color: var(--teal);
 }
+.test-login-btn {
+  border: 1px dashed #b8d4d0;
+  background: #f0faf8;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #1a7a5c;
+  transition: all .15s;
+}
+.test-login-btn:hover {
+  background: #d4ede4;
+  border-style: solid;
+}
 
 .pill-pending {
   background: #fff3d6;
