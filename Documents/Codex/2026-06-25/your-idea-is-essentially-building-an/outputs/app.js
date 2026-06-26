@@ -2655,40 +2655,53 @@ document.querySelectorAll(".segmented button").forEach((button) => {
   });
 });
 
-document.querySelectorAll(".login-tab").forEach((tab) => {
-  tab.addEventListener("click", () => {
-    document.querySelectorAll(".login-tab").forEach(t => t.classList.remove("active"));
-    tab.classList.add("active");
-    const isEmployee = tab.dataset.tab === "employee";
-    document.getElementById("roleField").style.display = isEmployee ? "" : "none";
-    document.getElementById("applyLinks").style.display = isEmployee ? "" : "none";
-    document.getElementById("loginCity").closest("label").style.display = isEmployee ? "none" : "";
-    document.getElementById("unifiedLoginForm").querySelector("button").textContent = isEmployee ? "Sign In" : "Sign Up & Continue";
-    document.getElementById("loginHelper").textContent = isEmployee
-      ? "Already have an approved application? Sign in to your portal."
-      : "Sign up to book a repair or browse deals from nearby RepairingMasters";
-    // Restrict role dropdown: employee tab shows only employee roles
-    const roleSelect = document.getElementById("loginRole");
-    Array.from(roleSelect.options).forEach(opt => {
-      opt.hidden = isEmployee ? !["technician","repairmaster","coordinator","admin"].includes(opt.value) : false;
+// Login UI initialization (only runs on login.html where elements exist)
+function initLoginUI() {
+  const loginTabs = document.querySelectorAll(".login-tab");
+  if (!loginTabs.length) return; // Not on login page
+
+  // Login tab switching
+  loginTabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      loginTabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      const isEmployee = tab.dataset.tab === "employee";
+      const roleField = document.getElementById("roleField");
+      const applyLinks = document.getElementById("applyLinks");
+      const cityLabel = document.getElementById("loginCity")?.closest("label");
+      const submitBtn = document.getElementById("unifiedLoginForm")?.querySelector("button");
+      const loginHelper = document.getElementById("loginHelper");
+      if (roleField) roleField.style.display = isEmployee ? "" : "none";
+      if (applyLinks) applyLinks.style.display = isEmployee ? "" : "none";
+      if (cityLabel) cityLabel.style.display = isEmployee ? "none" : "";
+      if (submitBtn) submitBtn.textContent = isEmployee ? "Sign In" : "Sign Up & Continue";
+      if (loginHelper) loginHelper.textContent = isEmployee
+        ? "Already have an approved application? Sign in to your portal."
+        : "Sign up to book a repair or browse deals from nearby RepairingMasters";
+      const roleSelect = document.getElementById("loginRole");
+      if (roleSelect) {
+        Array.from(roleSelect.options).forEach(opt => {
+          opt.hidden = isEmployee ? !["technician","repairmaster","coordinator","admin"].includes(opt.value) : false;
+        });
+        roleSelect.value = isEmployee ? "technician" : "customer";
+      }
     });
-    if (!isEmployee) {
-      roleSelect.value = "customer";
-    } else {
-      roleSelect.value = "technician";
-    }
   });
-});
 
-// Testing login buttons — auto-create accounts on first use
-const TEST_CREDENTIALS = {
-  admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin',        name: 'Admin User' },
-  coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator',  name: 'Coord User' },
-  technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician',   name: 'Tech User' },
-  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster',  name: 'RM User' }
-};
+  // Initial state: hide employee fields, show only customer/marketplace roles
+  const roleField = document.getElementById("roleField");
+  const applyLinks = document.getElementById("applyLinks");
+  const roleSelect = document.getElementById("loginRole");
+  if (roleField) roleField.style.display = "none";
+  if (applyLinks) applyLinks.style.display = "none";
+  if (roleSelect) {
+    Array.from(roleSelect.options).forEach(opt => {
+      opt.hidden = !["customer","marketplace"].includes(opt.value);
+    });
+  }
+}
 
-// Testing login — simple global function called from HTML onclick
+// Testing login — global function called from HTML onclick
 const TEST_CREDS = {
   admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin' },
   coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator' },
@@ -2696,39 +2709,27 @@ const TEST_CREDS = {
   repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster' }
 };
 
-async function handleTestLogin(roleKey) {
+window.handleTestLogin = async function handleTestLogin(roleKey) {
   const c = TEST_CREDS[roleKey];
   if (!c) return;
   try {
     const result = await signInWithEmail(c.email, c.password);
     state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
-    const profile = await fetchProfile(result.user.id);
-    if (profile) state.activeUser = profile;
-    loginPortal(c.role);
-  } catch {
-    // First time — create account then sign in
-    try {
-      const result = await signUpWithEmail(c.email, c.password, { name: c.email.split('@')[0], email: c.email, role: c.role });
-      const uid = result.user.id;
-      await createApplication({ user_id: uid, name: c.email.split('@')[0], email: c.email, phone: '9999999999',
-        role: roleKey === 'repairmaster' ? 'RepairingMaster' : roleKey.charAt(0).toUpperCase() + roleKey.slice(1),
-        location: 'Test City', details: {}, status: 'Approved' });
-      state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
-      loginPortal(c.role);
-    } catch (e) {
-      showToast('Test login failed: ' + (e.message || e), 'error');
-    }
+    state.activePortal = c.role;
+    state.activeView = portalLanding[c.role] || 'customer';
+    const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
+    window.location.href = pageMap[c.role] || 'customer.html';
+  } catch (err) {
+    showToast(err.message || "Test login failed");
   }
+};
+
+// Initialize login UI when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initLoginUI);
+} else {
+  initLoginUI();
 }
-
-document.getElementById("roleField").style.display = "none";
-document.getElementById("applyLinks").style.display = "none";
-// On load, only show customer/marketplace in the hidden role field
-Array.from(document.getElementById("loginRole").options).forEach(opt => {
-  opt.hidden = !["customer","marketplace"].includes(opt.value);
-});
-
-// ─── App Initialization ──────────────────────────────
 (async function initApp() {
   // Load data from Supabase (falls back to defaults)
   Object.assign(state, await loadState());
