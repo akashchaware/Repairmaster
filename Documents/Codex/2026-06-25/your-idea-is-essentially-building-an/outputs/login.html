@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepairingMaster Service Platform</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <div class="top-banner">
+    <div class="top-banner-left">
+      <img src="image/logo.png" alt="RepairingMaster">
+    </div>
+    <div class="top-banner-right">
+      <img src="image/device-repair.png" alt="Device repair services">
+    </div>
+  </div>
+  <section class="login-screen" id="loginScreen">
+    <div class="login-left">
+      <div class="brand">
+        <img class="brand-logo" src="image/logo.png" alt="RepairingMaster logo">
+        <div>
+          <strong>RepairingMaster</strong>
+          <span>India electronics service platform</span>
+        </div>
+      </div>
+      <div class="login-section-tabs">
+        <button class="login-tab active" data-tab="customer">Customer Sign Up</button>
+        <button class="login-tab" data-tab="employee">Employee Sign In</button>
+      </div>
+
+      <p class="login-helper" id="loginHelper">Sign up to book a repair or browse deals</p>
+
+      <form id="unifiedLoginForm">
+        <label>
+          Full name
+          <input id="loginName" placeholder="Your full name">
+        </label>
+        <label>
+          Email
+          <input id="loginEmail" type="email" placeholder="your@email.com">
+        </label>
+        <label>
+          City
+          <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi">
+        </label>
+        <label id="roleField">
+          Role
+          <select id="loginRole">
+            <option value="customer">Customer</option>
+            <option value="marketplace">Marketplace Buyer</option>
+            <option value="technician">Technician</option>
+            <option value="repairmaster">RepairingMaster</option>
+            <option value="coordinator">Coordinator</option>
+            <option value="admin">Admin</option>
+          </select>
+        </label>
+        <label>
+          Password
+          <input id="loginPassword" type="password" placeholder="Create a password">
+        </label>
+        <button class="primary-action full" type="submit">Sign Up &amp; Continue</button>
+      </form>
+
+      <div class="testing-login" id="testingLogin" style="margin-top:18px;border-top:1px solid var(--line);padding-top:16px">
+        <span class="eyebrow">Testing login</span>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">
+          <button class="test-login-btn" onclick="handleTestLogin('admin')">🔑 Admin</button>
+          <button class="test-login-btn" onclick="handleTestLogin('coordinator')">Coordinator</button>
+          <button class="test-login-btn" onclick="handleTestLogin('technician')">Technician</button>
+          <button class="test-login-btn" onclick="handleTestLogin('repairmaster')">RepairingMaster</button>
+        </div>
+      </div>
+
+      <div class="apply-links" id="applyLinks">
+        <span class="eyebrow">Apply for a role</span>
+        <div class="role-pills" id="rolePills">
+          <button class="role-pill active" data-role="technician">Technician</button>
+          <button class="role-pill" data-role="repairmaster">RepairingMaster</button>
+          <button class="role-pill" data-role="coordinator">Coordinator</button>
+          <button class="role-pill" data-role="admin">Admin</button>
+        </div>
+
+        <form id="applicationForm" class="app-form">
+          <label>Full name <input id="appName" placeholder="Full name" required></label>
+          <label>Email <input id="appEmail" type="email" placeholder="your@email.com" required></label>
+          <label>Phone <input id="appPhone" placeholder="Phone number" required></label>
+          <label>Location <select id="appLocation">
+            <option>Mumbai West</option>
+            <option>Bengaluru Central</option>
+            <option>Delhi NCR</option>
+            <option>Pune</option>
+            <option>Hyderabad</option>
+            <option>Chennai</option>
+            <option>Kolkata</option>
+            <option>Ahmedabad</option>
+          </select></label>
+          <div id="appDynamicFields"></div>
+          <button class="primary-action full" type="submit">Submit Application</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="login-right">
+      <div class="service-showcase">
+        <div class="showcase-card">
+          <div class="showcase-image-wrap">
+            <img src="image/technician-device-1.png" alt="Doorstep pickup" loading="lazy">
+            <div class="showcase-overlay">
+              <h3>Doorstep Pickup</h3>
+            </div>
+          </div>
+          <p class="showcase-desc">Schedule a free pickup from your home. Our technician arrives at your doorstep, collects the device, and provides a secure OTP handover.</p>
+        </div>
+        <div class="showcase-card">
+          <div class="showcase-image-wrap">
+            <img src="image/workshop.png" alt="Expert repair" loading="lazy">
+            <div class="showcase-overlay">
+              <h3>Expert Repair &amp; Drop</h3>
+            </div>
+          </div>
+          <p class="showcase-desc">RepairingMaster certified technicians repair your device at our labs. We deliver the repaired device back to your doorstep with quality check.</p>
+        </div>
+        <div class="showcase-card">
+          <div class="showcase-image-wrap">
+            <img src="image/technician-scooty.png" alt="Refurbished devices" loading="lazy">
+            <div class="showcase-overlay">
+              <h3>Certified Refurbished</h3>
+            </div>
+          </div>
+          <p class="showcase-desc">Shop grade-tested refurbished devices with warranty. Each device passes a 72-point quality check before listing.</p>
+        </div>
+      </div>
+
+      <div class="hot-deals-section">
+        <div class="section-title">
+          <p class="eyebrow">Hot deals</p>
+          <h2>Top deals from marketplace</h2>
+        </div>
+        <div class="hot-deals-grid" id="hotDealsGrid"></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

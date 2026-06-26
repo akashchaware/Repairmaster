@@ -1,3 +1,8 @@
+// Page detection — determines which role page this HTML file serves
+const ALL_ROLES = ['customer','coordinator','technician','repairmaster','admin','marketplace'];
+const PAGE_ROLE = ALL_ROLES.find(r => document.getElementById(r)) || null;
+const IS_LOGIN_PAGE = !PAGE_ROLE;
+
 const statuses = [
   "Request Submitted",
   "Under Review",
@@ -412,14 +417,16 @@ function applyPortalAccess() {
 
 function loginPortal(portal) {
   state.activePortal = portal;
-  state.activeView = portalLanding[portal];
-  document.getElementById("loginScreen").classList.add("hidden");
-  document.getElementById("appShell").classList.remove("hidden");
-  document.getElementById("resetDemo").classList.toggle("hidden", portal !== "admin");
-  applyPortalAccess();
-  updateUserBadge();
-  renderAll();
-  showToast(`${portalNames[portal]} opened`);
+  // Redirect to role-specific page
+  const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
+  if (!IS_LOGIN_PAGE) {
+    // Already on a role page — just render
+    state.activeView = portalLanding[portal];
+    renderAll();
+    showToast(`${portalNames[portal]} opened`);
+    return;
+  }
+  window.location.href = pageMap[portal] || 'customer.html';
 }
 
 function updateUserBadge() {
@@ -433,8 +440,7 @@ async function logoutPortal() {
   state.activePortal = null;
   await saveState();
   await signOutUser();
-  document.getElementById("appShell").classList.add("hidden");
-  document.getElementById("loginScreen").classList.remove("hidden");
+  window.location.href = 'login.html';
 }
 
 function renderProgress() {
@@ -1797,17 +1803,18 @@ function renderHotDeals() {
 }
 
 function renderAll() {
-  renderHotDeals();
-  applyPortalAccess();
-  renderProgress();
-  renderCustomer();
-  renderCoordinator();
-  renderTechnician();
-  renderRepairingMaster();
-  renderAdmin();
-  renderMarketplace();
-  renderLocalDeals();
-  switchView(state.activeView);
+  if (IS_LOGIN_PAGE) {
+    renderHotDeals();
+    return;
+  }
+  switch (PAGE_ROLE) {
+    case 'customer': renderCustomer(); break;
+    case 'coordinator': renderCoordinator(); break;
+    case 'technician': renderTechnician(); break;
+    case 'repairmaster': renderRepairingMaster(); break;
+    case 'admin': renderAdmin(); break;
+    case 'marketplace': renderMarketplace(); break;
+  }
   renderNotifications();
 }
 
@@ -2720,24 +2727,39 @@ Array.from(document.getElementById("loginRole").options).forEach(opt => {
 
   // Check for existing auth session
   const session = await getCurrentSession();
+  const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
+
   if (session) {
     const profile = await fetchProfile(session.user.id);
     if (profile && profile.role) {
       state.activeUser = profile;
       state.activePortal = profile.role;
       state.activeView = portalLanding[profile.role] || 'customer';
-      document.getElementById("loginScreen").classList.add("hidden");
-      document.getElementById("appShell").classList.remove("hidden");
-      applyPortalAccess();
-      updateUserBadge();
+
+      if (IS_LOGIN_PAGE) {
+        // On login page but already logged in — redirect to role page
+        window.location.href = pageMap[profile.role] || 'customer.html';
+        return;
+      }
+
+      // On role page — verify correct role, render
+      if (PAGE_ROLE && profile.role !== PAGE_ROLE && PAGE_ROLE !== 'marketplace') {
+        // Wrong role page — redirect to correct one
+        window.location.href = pageMap[profile.role] || 'login.html';
+        return;
+      }
+
       renderAll();
       showToast(`Welcome back, ${profile.name || profile.email}`);
       return;
     }
   }
 
-  // No session — show login
-  document.getElementById("loginScreen").classList.remove("hidden");
-  document.getElementById("appShell").classList.add("hidden");
-  renderAll();
+  // No session
+  if (IS_LOGIN_PAGE) {
+    renderAll();
+  } else {
+    // On role page without session — redirect to login
+    window.location.href = 'login.html';
+  }
 })();

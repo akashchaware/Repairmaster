@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Technician Jobs - RepairingMaster</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="image/logo.png" alt="RepairingMaster logo">
+        <div>
+          <strong>RepairingMaster</strong>
+          <span>India electronics service platform</span>
+        </div>
+      </div>
+
+      <div class="user-badge" id="userBadge">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <div class="user-info">
+          <strong id="userName">User</strong>
+          <span id="userRoleBadge">Technician</span>
+        </div>
+      </div>
+
+      <div class="sidebar-panel">
+        <span class="panel-label">Current Ticket</span>
+        <strong id="activeRequestLabel">RM-1024</strong>
+        <p id="activeRequestMeta">iPhone 14 Pro - Screen damage</p>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="login.html" class="sidebar-logout" id="sidebarLogoutBtn">Logout</a>
+      </div>
+    </aside>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-header">
+        <span>Notifications</span>
+        <button id="markAllReadBtn">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notifList"></div>
+    </div>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="portalEyebrow">Technician operations - India</p>
+          <h1 id="pageTitle">Technician Jobs</h1>
+        </div>
+        <div class="top-actions">
+          <a href="login.html" class="secondary-action">Switch Portal</a>
+          <div class="notif-bell" id="notifBell">
+            <span class="bell-icon">🔔</span>
+            <span class="notif-badge" id="notifBadge">0</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="view" id="technician">
+        <div id="techDashboard">
+          <div class="metric-grid" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
+            <article><span>Assigned Jobs</span><strong id="techAssignedCount">0</strong></article>
+            <article><span>Completed</span><strong id="techCompletedCount">0</strong></article>
+            <article><span>Active</span><strong id="techActiveCount">0</strong></article>
+          </div>
+          <div class="route-board">
+            <div class="map-visual">
+              <span class="pin customer-pin"></span>
+              <span class="pin shop-pin"></span>
+              <span class="route-line"></span>
+              <div class="map-label pickup">Pickup</div>
+              <div class="map-label lab">Repair Lab</div>
+            </div>
+            <div class="job-card">
+              <p class="eyebrow">Assigned job</p>
+              <h2 id="techJobTitle">Pickup RM-1024</h2>
+              <p id="techJobDesc">Customer OTP required before device collection.</p>
+              <p id="techJobMeta"></p>
+              <div class="condition-previews" id="techConditionPreviews"></div>
+              <div class="otp-row">
+                <input id="otpInput" maxlength="4" value="4821" aria-label="OTP code">
+                <button id="verifyOtp">Verify OTP</button>
+              </div>
+              <div class="checklist" id="techChecklist"></div>
+            </div>
+          </div>
+          <div id="techAssignedList" style="margin-top:18px">
+            <p class="eyebrow">All assigned jobs</p>
+            <div id="techRequestsList" class="request-list"></div>
+          </div>
+        </div>
+        <div id="techRequestView" style="display:none">
+          <div class="detail-topbar">
+            <button id="techDetailBackBtn" class="secondary-action">← Back to jobs</button>
+            <span id="techDetailTitle" style="font-weight:700;font-size:18px"></span>
+            <span id="techDetailStatus" class="status-pill"></span>
+          </div>
+          <div id="techRequestContent"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RepairingMaster - Customer Portal</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body>
+  <div class="app-shell" id="appShell">
+    <aside class="sidebar">
+      <div class="brand">
+        <img class="brand-logo" src="image/logo.png" alt="RepairingMaster logo">
+        <div>
+          <strong>RepairingMaster</strong>
+          <span>India electronics service platform</span>
+        </div>
+      </div>
+
+      <div class="user-badge" id="userBadge">
+        <div class="user-avatar" id="userAvatar">U</div>
+        <div class="user-info">
+          <strong id="userName">User</strong>
+          <span id="userRoleBadge">Customer</span>
+        </div>
+      </div>
+
+      <div class="sidebar-panel">
+        <span class="panel-label">Current Ticket</span>
+        <strong id="activeRequestLabel">RM-1024</strong>
+        <p id="activeRequestMeta">iPhone 14 Pro - Screen damage</p>
+      </div>
+
+      <div class="sidebar-footer">
+        <a href="login.html" class="sidebar-logout" id="sidebarLogoutBtn">Logout</a>
+      </div>
+    </aside>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-header">
+        <span>Notifications</span>
+        <button id="markAllReadBtn">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notifList"></div>
+    </div>
+
+    <main class="content">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="portalEyebrow">Mobile repair operations - India</p>
+          <h1 id="pageTitle">Customer App</h1>
+        </div>
+        <div class="top-actions">
+          <a href="login.html" class="secondary-action" id="logoutButton">Switch Portal</a>
+          <div class="notif-bell" id="notifBell">
+            <span class="bell-icon">🔔</span>
+            <span class="notif-badge" id="notifBadge">0</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="view active" id="customer">
+        <div id="custDashboard">
+        <div class="split-layout">
+          <div class="customer-left-col">
+            <form class="request-form" id="serviceForm" novalidate>
+              <div class="section-title">
+                <p class="eyebrow">New request</p>
+                <h2>Book a repair pickup</h2>
+              </div>
+              <label>
+                Your name
+                <input id="nameInput" placeholder="Full name" required>
+              </label>
+              <label>
+                Phone number
+                <input id="phoneInput" type="tel" placeholder="+91 98xxx xxxxx" required>
+              </label>
+              <label>
+                Device type
+                <select id="deviceType">
+                  <option>Smartphone</option>
+                  <option>TV</option>
+                  <option>Smartwatch</option>
+                  <option>LED / Monitor</option>
+                  <option>Solar Panel</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label>
+                Device brand
+                <select id="brandInput">
+                  <option>Apple</option>
+                  <option>Samsung</option>
+                  <option>Google</option>
+                  <option>OnePlus</option>
+                  <option>Xiaomi</option>
+                  <option>Vivo</option>
+                  <option>Oppo</option>
+                  <option>Redmi</option>
+                  <option>Realme</option>
+                  <option>Other</option>
+                </select>
+              </label>
+            <label>
+              Model
+              <input id="modelInput" placeholder="Device model">
+            </label>
+            <label>
+              Problem
+              <select id="issueInput">
+                <option>Screen / Display issue</option>
+                <option>Battery / Power issue</option>
+                <option>Charging port fault</option>
+                <option>Water / Weather damage</option>
+                <option>Speaker or microphone issue</option>
+                <option>Motherboard / Circuit issue</option>
+                <option>Connectivity issue</option>
+                <option>Physical damage</option>
+                <option>Software issue</option>
+                <option>Other issue</option>
+              </select>
+            </label>
+            <label>
+              Pickup address
+              <input id="addressInput" placeholder="Customer address">
+            </label>
+            <label>
+              Device photos (upload images of the issue)
+              <input id="requestImageInput" type="file" accept="image/*" multiple>
+              <div id="requestImagePreviews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+            </label>
+            <button class="primary-action full" type="submit">Create Service Request</button>
+          </form>
+
+          <div class="customer-panel" id="customerPanel" style="display:none">
+            <div class="device-hero">
+              <div class="phone-art">
+                <span class="speaker"></span>
+                <span class="crack one"></span>
+                <span class="crack two"></span>
+                <span class="screen-glow"></span>
+              </div>
+              <div>
+                <p class="eyebrow">Active service</p>
+                <h2 id="deviceTitle">iPhone 14 Pro</h2>
+                <p id="deviceIssue">Screen damage, pickup from Bandra West</p>
+                <div class="tag-row">
+                  <span>Warranty check</span>
+                  <span>WhatsApp updates</span>
+                  <span>OTP secured</span>
+                </div>
+              </div>
+            </div>
+            <div id="statusGuidance" style="background:#e8f4f3;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px"></div>
+            <div id="requirementsSection" class="requirements-form" style="display:none">
+              <p class="eyebrow">Customisation</p>
+              <h3>Back cover & glass requirements</h3>
+              <label>
+                Back cover preference
+                <select id="backCoverInput">
+                  <option value="">Select...</option>
+                  <option>Matte Black</option>
+                  <option>Midnight Blue</option>
+                  <option>Clear Transparent</option>
+                  <option>Carbon Fibre</option>
+                  <option>Glossy White</option>
+                  <option>No change needed</option>
+                </select>
+              </label>
+              <label>
+                Glass type
+                <select id="glassInput">
+                  <option value="">Select...</option>
+                  <option>Tempered Glass</option>
+                  <option>Standard Glass</option>
+                  <option>Anti-Glare</option>
+                  <option>Privacy Guard</option>
+                  <option>No change needed</option>
+                </select>
+              </label>
+              <button class="primary-action full" id="saveRequirements">Save Requirements</button>
+            </div>
+            <div class="quote-box">
+              <div>
+                <p class="eyebrow">Quotation</p>
+                <h3 id="quoteStatus">Waiting for quotation</h3>
+                <div id="quoteItemsList" class="quote-items"></div>
+              </div>
+              <strong id="quoteAmount">INR 0</strong>
+              <button id="approveQuote">Approve</button>
+            </div>
+            <div class="condition-upload" id="conditionSection">
+              <p class="eyebrow">Device condition</p>
+              <h3>Upload photos before pickup</h3>
+              <p class="condition-hint">Show the current condition of your device for verification.</p>
+              <div class="condition-input-row">
+                <input id="conditionInput" type="file" accept="image/*" multiple>
+                <button id="uploadConditionBtn">Upload</button>
+              </div>
+              <div class="condition-previews" id="conditionPreviews"></div>
+            </div>
+            <div id="invoiceSection" class="invoice-box" style="display:none">
+              <p class="eyebrow">Payment</p>
+              <h3>Invoice</h3>
+              <p>Your service invoice is ready. Choose a payment method to proceed with the repair.</p>
+              <div class="invoice-amount"><strong id="invoiceAmount">INR 7,999</strong></div>
+              <div class="payment-options">
+                <button class="primary-action" id="payOnlineBtn">Pay Online</button>
+                <button class="secondary-action" id="payCodBtn">Cash on Delivery</button>
+              </div>
+              <p id="paymentConfirmation" style="display:none;color:var(--green);font-weight:700"></p>
+            </div>
+            <div class="timeline" id="customerTimeline"></div>
+          </div>
+          <div id="custRequestsList" class="request-list" style="margin-top:14px"></div>
+        </div>
+
+        <div class="local-deals-section">
+          <div class="section-title">
+            <p class="eyebrow" id="dealsLocationLabel">Hot deals near you</p>
+            <h2>Devices from nearby RepairingMasters</h2>
+          </div>
+          <div class="local-deals-grid" id="localDealsGrid"></div>
+        </div>
+      </div>
+      <div id="custRequestView" style="display:none">
+        <div class="detail-topbar">
+          <button id="custDetailBackBtn" class="secondary-action">← Back to dashboard</button>
+          <span id="custDetailTitle" style="font-weight:700;font-size:18px"></span>
+          <span id="custDetailStatus" class="status-pill"></span>
+        </div>
+        <div id="custRequestContent"></div>
+      </div>
+    </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
