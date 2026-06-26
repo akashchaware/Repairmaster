@@ -439,7 +439,7 @@ function renderCustomer() {
 
   const cv = document.getElementById("conditionPreviews");
   if (cv) {
-    cv.innerHTML = request.conditionImages.map((img) => `<img src="${img}" alt="Device condition">`).join("");
+    cv.innerHTML = request.conditionImages.map((img) => `<img src="${img}" alt="Device condition" loading="lazy">`).join("");
   }
 
   // Invoice section - show at status 7 (Invoice Sent)
@@ -553,7 +553,7 @@ function renderTechnician() {
   if (techPreviews) {
     if (request.conditionImages.length) {
       techPreviews.innerHTML = `<span style="font-size:12px;font-weight:800;color:var(--muted);width:100%">Device condition photos:</span>` +
-        request.conditionImages.map((img) => `<img src="${img}" alt="Device condition">`).join("");
+        request.conditionImages.map((img) => `<img src="${img}" alt="Device condition" loading="lazy">`).join("");
     } else {
       techPreviews.innerHTML = "";
     }
@@ -767,7 +767,7 @@ function renderMarketplace() {
       return `
         <article class="market-card" style="opacity:0.5">
           <div class="market-card-image-wrap">
-            <img class="market-card-image" src="${currentImg}" alt="${item.model}" style="filter:grayscale(1)">
+            <img class="market-card-image" src="${currentImg}" alt="${item.model}" loading="lazy" style="filter:grayscale(1)">
           </div>
           <div class="market-body">
             <span class="grade-pill">Grade ${item.grade}</span>
@@ -785,7 +785,7 @@ function renderMarketplace() {
     return `
       <article class="market-card">
         <div class="market-card-image-wrap">
-          <img class="market-card-image" src="${currentImg}" alt="${item.model}">
+          <img class="market-card-image" src="${currentImg}" alt="${item.model}" loading="lazy">
           ${showNav ? `
           <button class="slide-btn slide-prev" data-slide="${index}" data-dir="-1">&#8249;</button>
           <button class="slide-btn slide-next" data-slide="${index}" data-dir="1">&#8250;</button>
@@ -865,7 +865,7 @@ function renderHotDeals() {
     return `
     <div class="hot-deal-card">
       <span class="hot-badge">Hot Deal</span>
-      <img class="hot-deal-img" src="${imgs[0]}" alt="${item.model}">
+      <img class="hot-deal-img" src="${imgs[0]}" alt="${item.model}" loading="lazy">
       <h4>${item.model}</h4>
       <p>Grade ${item.grade} &middot; ${item.warranty}</p>
       <strong>${formatCurrency(displayPrice(item.basePrice))}</strong>

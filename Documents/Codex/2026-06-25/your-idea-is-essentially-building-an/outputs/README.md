@@ -21,3 +21,12 @@ Open `index.html` in a browser to use the prototype.
 - Service operations use a dropdown selector inside the app.
 
 The prototype stores demo changes in browser local storage. Use the reset button in the top bar to return to the starting data and portal selector.
+
+## Image System
+
+All images live in `outputs\image\`. Reference them as `image/<filename>` in HTML/JS.
+
+To add a new image:
+1. Drop the file into `outputs\image\`
+2. Reference it in code — e.g. `<img src="image/your-file.png">`
+3. See `image/README.txt` for naming conventions and tips
