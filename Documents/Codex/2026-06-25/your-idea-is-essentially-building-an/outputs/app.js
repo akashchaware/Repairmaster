@@ -1397,6 +1397,13 @@ renderDynamicFields("technician");
 document.getElementById("logoutButton").addEventListener("click", logoutPortal);
 document.getElementById("sidebarLogoutBtn").addEventListener("click", logoutPortal);
 
+async function notifyRoles(roles, message, type = 'info', link = '') {
+  const { data: users } = await supabase.from('profiles').select('id').in('role', roles);
+  for (const u of (users || [])) {
+    await createNotification({ user_id: u.id, message, type, link });
+  }
+}
+
 document.getElementById("advanceStatus").addEventListener("click", async () => {
   const request = activeRequest();
   if (request.statusIndex >= statuses.length - 1) {
@@ -1411,21 +1418,63 @@ document.getElementById("advanceStatus").addEventListener("click", async () => {
     showToast("COD payment must be collected before confirming received");
     return;
   }
+  const prevIndex = request.statusIndex;
   request.statusIndex = Math.min(request.statusIndex + 1, statuses.length - 1);
   if (request.statusIndex === 9) request.invoiceSent = true;
+  const session = await getCurrentSession();
   if (request.statusIndex === 13 && request.paymentMethod === "Online") {
     request.paymentStatus = "Paid";
-    createNotification({ user_id: session?.user?.id || null, message: `Payment received for ${request.id}`, type: 'success' });
   }
   saveState();
   renderAll();
-  // Notify customer about status change
-  const session = await getCurrentSession();
-  if (session?.user?.id) {
-    await createNotification({ user_id: session.user.id, message: `Your request ${request.id} is now: ${statuses[request.statusIndex]}`, type: 'info' });
+  const statusName = statuses[request.statusIndex];
+  const msg = `Request ${request.id} is now: ${statusName}`;
+  // Notify customer for any status change
+  if (request.customer_id) {
+    await createNotification({ user_id: request.customer_id, message: `Your request ${request.id}: ${statusName}`, type: 'info' });
+  }
+  // Role-based notifications per status
+  switch (request.statusIndex) {
+    case 1: // Requirements Provided → notify customer (already done above)
+      break;
+    case 2: // Quotation Sent → customer
+      break;
+    case 3: // Waiting Approval → customer
+      break;
+    case 4: // Pickup Scheduled → notify assigned technician
+      if (request.technician_id) {
+        await createNotification({ user_id: request.technician_id, message: `Pickup scheduled for ${request.id}`, type: 'info', link: 'technician' });
+      }
+      break;
+    case 5: // Device Picked Up → notify RepairingMaster
+      await notifyRoles(['repairmaster'], `Device picked up for ${request.id} — ready for diagnosis`, 'info', 'repairmaster');
+      break;
+    case 6: // Under Diagnosis → customer
+      break;
+    case 7: // Repair In Progress → customer
+      break;
+    case 8: // Quality Check → customer
+      break;
+    case 9: // Invoice Sent → customer
+      break;
+    case 10: // Payment Initiated → notify admin + coordinator
+      await notifyRoles(['admin', 'coordinator'], `Payment initiated for ${request.id}`, 'info', 'coordinator');
+      break;
+    case 11: // Ready for Delivery → notify assigned technician
+      if (request.technician_id) {
+        await createNotification({ user_id: request.technician_id, message: `${request.id} ready for delivery`, type: 'info', link: 'technician' });
+      }
+      break;
+    case 12: // Delivered → customer
+      break;
+    case 13: // Payment Received → notify coordinator
+      await notifyRoles(['coordinator'], `Payment received for ${request.id}`, 'success', 'coordinator');
+      break;
+    case 14: // Closed → customer
+      break;
   }
   renderNotifications();
-  showToast(`${request.id} moved to ${statuses[request.statusIndex]}`);
+  showToast(`${request.id} moved to ${statusName}`);
 });
 
 document.getElementById("resetDemo").addEventListener("click", async () => {
@@ -1450,9 +1499,11 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
     return;
   }
   const id = `RM-${1024 + state.requests.length}`;
+  const session = await getCurrentSession();
   const request = {
     id,
     customer: name,
+    customer_id: session?.user?.id || null,
     brand,
     model,
     issue,
