@@ -372,31 +372,39 @@ function handleRoute() {
   const hash = window.location.hash.slice(1) || '';
   const parts = hash.split('/').filter(Boolean);
   if (!hash) {
-    if (state.activePortal) switchView(portalLanding[state.activePortal]);
     return;
   }
+  // Support #request/ID (current page role) and #role/request/ID (cross-page)
+  if (parts[0] === 'request' && parts[1]) {
+    const rid = parts[1];
+    if (state.requests.find(r => r.id === rid)) {
+      state.activeRequestId = rid;
+      const modeKey = ROLE_DETAIL_MODES[PAGE_ROLE];
+      if (modeKey) {
+        Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
+        state[modeKey] = true;
+        renderAll();
+      }
+      return;
+    }
+  }
+  // Cross-page format: #role/request/ID
   const role = parts[0];
-  // role/request/ID — open detail view for any role
   if (parts[1] === 'request' && parts[2]) {
     const modeKey = ROLE_DETAIL_MODES[role];
     if (modeKey && state.requests.find(r => r.id === parts[2])) {
       state.activeRequestId = parts[2];
-      state.activeView = role;
-      // Clear all detail modes first
       Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
       state[modeKey] = true;
       renderAll();
       return;
     }
   }
-  // Simple role view
-  if (portalAccess[state.activePortal]?.includes(role)) {
-    Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
-    switchView(role);
-  }
 }
 
 window.addEventListener('hashchange', handleRoute);
+// Handle initial hash on page load
+handleRoute();
 
 function closeRoleDetail(role) {
   const modeKey = ROLE_DETAIL_MODES[role];
@@ -972,7 +980,7 @@ function renderDetailActions(req) {
              <button class="secondary-action rd-btn rd-btn-reject" data-rid="${rid}" style="color:#e74c3c">✗ Reject</button>`;
   } else if (si === 1) {
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer will provide requirements (back cover, glass type). Then prepare and send quotation from the <strong>RepairingMaster</strong> portal.</p>
-             <button class="primary-action rd-btn rd-btn-view-rm" onclick="navigateTo('#repairmaster')">Go to RepairingMaster →</button>`;
+             <a href="repairmaster.html#request/${rid}" class="primary-action rd-btn rd-btn-view-rm" style="display:inline-block;text-decoration:none">Go to RepairingMaster →</a>`;
   } else if (si === 3) {
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer approved! Assign technician and repair partner:</p>
              <select class="rd-pickup-tech" data-rid="${rid}"><option>Ravi - Mumbai West</option><option>Arjun - Bengaluru Central</option><option>Imran - Delhi NCR</option></select>
