@@ -37,7 +37,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           # Upload entire repository
-          path: '.'
+          path: 'Documents/Codex/2026-06-25/your-idea-is-essentially-building-an/outputs'
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
