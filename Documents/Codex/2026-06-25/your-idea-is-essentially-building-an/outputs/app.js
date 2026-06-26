@@ -1815,44 +1815,38 @@ const TEST_CREDENTIALS = {
   repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster',  name: 'RM User' }
 };
 
-document.querySelectorAll(".test-login-btn").forEach(btn => {
-  btn.addEventListener("click", async () => {
-    const testRole = btn.dataset.testrole;
-    const creds = TEST_CREDENTIALS[testRole];
-    if (!creds) return;
-    btn.textContent = "⏳ Logging in...";
-    btn.disabled = true;
+// Testing login — simple global function called from HTML onclick
+const TEST_CREDS = {
+  admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin' },
+  coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator' },
+  technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician' },
+  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster' }
+};
+
+async function handleTestLogin(roleKey) {
+  const c = TEST_CREDS[roleKey];
+  if (!c) return;
+  try {
+    const result = await signInWithEmail(c.email, c.password);
+    state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
+    const profile = await fetchProfile(result.user.id);
+    if (profile) state.activeUser = profile;
+    loginPortal(c.role);
+  } catch {
+    // First time — create account then sign in
     try {
-      // Try signing in first
-      let user;
-      try {
-        const result = await signInWithEmail(creds.email, creds.password);
-        user = result.user;
-      } catch {
-        // Account doesn't exist — create it
-        const result = await signUpWithEmail(creds.email, creds.password, { name: creds.name, email: creds.email, role: creds.role });
-        user = result.user;
-        // Create profile
-        await supabase.from('profiles').upsert({ id: user.id, email: creds.email, name: creds.name, role: creds.role });
-        // Create approved application
-        await supabase.from('applications').insert({
-          user_id: user.id, name: creds.name, email: creds.email, phone: '9999999999',
-          role: testRole === 'repairmaster' ? 'RepairingMaster' : testRole.charAt(0).toUpperCase() + testRole.slice(1),
-          location: 'Test City', details: {}, status: 'Approved'
-        });
-      }
-      state.activeUser = { name: creds.name, email: creds.email, role: creds.role };
-      // Fetch profile if exists
-      const profile = await fetchProfile(user.id);
-      if (profile) state.activeUser = profile;
-      loginPortal(creds.role);
-    } catch (err) {
-      showToast(`Testing login failed: ${err.message || err}`, 'error');
-      btn.textContent = "🔑 " + (testRole === 'repairmaster' ? 'RepairingMaster' : testRole.charAt(0).toUpperCase() + testRole.slice(1));
-      btn.disabled = false;
+      const result = await signUpWithEmail(c.email, c.password, { name: c.email.split('@')[0], email: c.email, role: c.role });
+      const uid = result.user.id;
+      await createApplication({ user_id: uid, name: c.email.split('@')[0], email: c.email, phone: '9999999999',
+        role: roleKey === 'repairmaster' ? 'RepairingMaster' : roleKey.charAt(0).toUpperCase() + roleKey.slice(1),
+        location: 'Test City', details: {}, status: 'Approved' });
+      state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
+      loginPortal(c.role);
+    } catch (e) {
+      showToast('Test login failed: ' + (e.message || e), 'error');
     }
-  });
-});
+  }
+}
 
 document.getElementById("roleField").style.display = "none";
 document.getElementById("applyLinks").style.display = "none";
