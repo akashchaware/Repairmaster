@@ -583,15 +583,20 @@
       </section>
 
       <section class="view" id="admin">
-        <div class="metric-grid admin-metrics">
-          <article><span>Platform Commission</span><strong id="platformCommission">INR 96,400</strong></article>
-
-
-          <article><span>Escalations</span><strong id="escalations">2</strong></article>
+        <div class="metric-grid admin-metrics" style="grid-template-columns:repeat(4,1fr)">
+          <article><span>Platform Commission</span><strong id="platformCommission">INR 0</strong></article>
+          <article><span>Escalations</span><strong id="escalations">0</strong></article>
+          <article><span>Total Requests</span><strong id="totalRequests">0</strong></article>
+          <article><span>Pending Applications</span><strong id="pendingApps">0</strong></article>
         </div>
         <div class="admin-grid">
           <div class="chart-panel">
             <div class="section-title">
+              <p class="eyebrow">Requests overview</p>
+              <h2>Status breakdown</h2>
+            </div>
+            <div id="statusBreakdown"></div>
+            <div class="section-title" style="margin-top:18px">
               <p class="eyebrow">Network health</p>
               <h2>Weekly repair volume</h2>
             </div>
