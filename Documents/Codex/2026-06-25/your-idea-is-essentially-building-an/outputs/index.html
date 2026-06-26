@@ -232,6 +232,10 @@
                 <input id="nameInput" placeholder="Full name" required>
               </label>
               <label>
+                Phone number
+                <input id="phoneInput" type="tel" placeholder="+91 98xxx xxxxx" required>
+              </label>
+              <label>
                 Device type
                 <select id="deviceType">
                   <option>Smartphone</option>
@@ -280,6 +284,11 @@
               Pickup address
               <input id="addressInput" placeholder="Customer address">
             </label>
+            <label>
+              Device photos (upload images of the issue)
+              <input id="requestImageInput" type="file" accept="image/*" multiple>
+              <div id="requestImagePreviews" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px"></div>
+            </label>
             <button class="primary-action full" type="submit">Create Service Request</button>
           </form>
 
@@ -302,6 +311,7 @@
                 </div>
               </div>
             </div>
+            <div id="statusGuidance" style="background:#e8f4f3;border-radius:8px;padding:10px 14px;margin:8px 0;font-size:13px"></div>
             <div id="requirementsSection" class="requirements-form" style="display:none">
               <p class="eyebrow">Customisation</p>
               <h3>Back cover &amp; glass requirements</h3>
@@ -375,220 +385,210 @@
     </section>
 
       <section class="view" id="coordinator">
-        <div class="metric-grid">
-          <article><span>Open Tickets</span><strong id="openTickets">8</strong></article>
-          <article><span>Avg Repair Time</span><strong id="avgRepairTime">31h</strong></article>
-          <article><span>Revenue</span><strong id="revenueMetric">INR 4,82,000</strong></article>
-          <article><span>Customer Rating</span><strong id="customerRating">4.8</strong></article>
-        </div>
-        <div class="operations-grid">
-          <div class="table-card wide">
-            <div class="section-title">
-              <p class="eyebrow">Dispatch board</p>
-              <h2>Service requests</h2>
-            </div>
-            <div class="request-list" id="requestList"></div>
+        <!-- Dashboard view (request list) -->
+        <div id="coordinatorDashboard">
+          <div class="metric-grid">
+            <article><span>Open Tickets</span><strong id="openTickets">0</strong></article>
+            <article><span>Pending Action</span><strong id="pendingActionCount" style="color:#e74c3c">0</strong></article>
+            <article><span>Revenue</span><strong id="revenueMetric">INR 0</strong></article>
+            <article><span>Avg Resolution</span><strong id="avgRepairTime">—</strong></article>
           </div>
-          <div class="assignment-card">
+
+          <div class="pending-actions" id="pendingActions">
             <div class="section-title">
-              <p class="eyebrow">Assignment</p>
-              <h2>Control desk</h2>
+              <p class="eyebrow">Urgent</p>
+              <h2>Pending actions <span id="pendingCountBadge" class="urgent-badge">0</span></h2>
             </div>
-            <label>
-              Pickup technician
-              <select id="pickupTech">
-                <option>Ravi - Mumbai West</option>
-                <option>Arjun - Bengaluru Central</option>
-                <option>Imran - Delhi NCR</option>
-              </select>
-            </label>
-            <label>
-              RepairingMaster
-              <select id="repairPartner">
-                <option>FixHub Andheri</option>
-                <option>TechCare Koramangala</option>
-                <option>Prime Mobile Lab Noida</option>
-              </select>
-            </label>
-            <label>
-              Delivery window
-              <input id="deliveryWindow" value="Today, 7:00 PM - 9:00 PM">
-            </label>
-            <label>
-              Minimum service fee (INR)
-              <input id="minServiceFeeInput" type="number" min="0" value="150">
-            </label>
-            <label>
-              Tax / GST (%)
-              <input id="taxPercentInput" type="number" min="0" max="100" value="18">
-            </label>
-            <label>
-              Service charge (%)
-              <input id="serviceChargeInput" type="number" min="0" max="100" value="10">
-            </label>
-            <button class="primary-action full" id="saveAssignments">Save Assignments</button>
+            <div id="pendingActionsList"></div>
+          </div>
+
+          <div class="operations-grid">
+            <div class="table-card wide">
+              <div class="section-title">
+                <p class="eyebrow">All requests</p>
+                <h2>Service requests</h2>
+              </div>
+              <div class="request-list" id="requestList"></div>
+            </div>
+            <div class="assignment-card" id="coordinatorDetailPanel">
+              <div class="section-title">
+                <p class="eyebrow">Request detail</p>
+                <h2 id="detailPanelTitle">Control desk</h2>
+              </div>
+              <div id="coordinatorDetailContent"></div>
+            </div>
           </div>
         </div>
 
-        <div class="section-title" style="margin-top:24px">
-          <p class="eyebrow">Marketplace dispatch</p>
-          <h2>Device delivery orders</h2>
-        </div>
-        <div class="order-dispatch" id="orderDispatch">
-          <div class="order-list" id="orderList"></div>
-          <div class="order-assign" id="orderAssignPanel">
-            <p class="eyebrow">Assign delivery</p>
-            <label>
-              Delivery technician
-              <select id="deliveryTech">
-                <option>Ravi - Mumbai West</option>
-                <option>Arjun - Bengaluru Central</option>
-                <option>Imran - Delhi NCR</option>
-              </select>
-            </label>
-            <label>
-              Delivery address
-              <input id="deliveryAddress" placeholder="Customer delivery address">
-            </label>
-            <button class="primary-action full" id="assignDelivery">Assign Technician</button>
+        <!-- Full-screen request detail view (step-by-step wizard) -->
+        <div id="coordinatorRequestView" style="display:none">
+          <div class="detail-topbar">
+            <button id="detailBackBtn" class="secondary-action">← Back to dashboard</button>
+            <span id="detailViewTitle" style="font-weight:700;font-size:18px"></span>
+            <span id="detailViewStatus" class="status-pill"></span>
           </div>
+          <div id="coordinatorRequestContent"></div>
         </div>
       </section>
 
       <section class="view" id="technician">
-        <div class="route-board">
-          <div class="map-visual">
-            <span class="pin customer-pin"></span>
-            <span class="pin shop-pin"></span>
-            <span class="route-line"></span>
-            <div class="map-label pickup">Pickup</div>
-            <div class="map-label lab">Repair Lab</div>
-          </div>
-          <div class="job-card">
-            <p class="eyebrow">Assigned job</p>
-            <h2 id="techJobTitle">Pickup RM-1024</h2>
-            <p id="techJobDesc">Customer OTP required before device collection.</p>
-            <p id="techJobMeta"></p>
-            <div class="condition-previews" id="techConditionPreviews"></div>
-            <div class="otp-row">
-              <input id="otpInput" maxlength="4" value="4821" aria-label="OTP code">
-              <button id="verifyOtp">Verify OTP</button>
+        <div id="techDashboard">
+          <div class="route-board">
+            <div class="map-visual">
+              <span class="pin customer-pin"></span>
+              <span class="pin shop-pin"></span>
+              <span class="route-line"></span>
+              <div class="map-label pickup">Pickup</div>
+              <div class="map-label lab">Repair Lab</div>
             </div>
-            <div class="checklist" id="techChecklist"></div>
+            <div class="job-card">
+              <p class="eyebrow">Assigned job</p>
+              <h2 id="techJobTitle">Pickup RM-1024</h2>
+              <p id="techJobDesc">Customer OTP required before device collection.</p>
+              <p id="techJobMeta"></p>
+              <div class="condition-previews" id="techConditionPreviews"></div>
+              <div class="otp-row">
+                <input id="otpInput" maxlength="4" value="4821" aria-label="OTP code">
+                <button id="verifyOtp">Verify OTP</button>
+              </div>
+              <div class="checklist" id="techChecklist"></div>
+            </div>
+          </div>
+          <div id="techAssignedList" style="margin-top:18px">
+            <p class="eyebrow">All assigned jobs</p>
+            <div id="techRequestsList" class="request-list"></div>
           </div>
         </div>
-        <div class="tech-deliveries" id="techDeliveries">
-          <p class="eyebrow" style="margin-top:18px">Marketplace deliveries</p>
-          <div id="techDeliveryList"></div>
+        <div id="techRequestView" style="display:none">
+          <div class="detail-topbar">
+            <button id="techDetailBackBtn" class="secondary-action">← Back to jobs</button>
+            <span id="techDetailTitle" style="font-weight:700;font-size:18px"></span>
+            <span id="techDetailStatus" class="status-pill"></span>
+          </div>
+          <div id="techRequestContent"></div>
         </div>
       </section>
 
       <section class="view" id="repairmaster">
-        <div class="partner-layout">
-          <div class="diagnosis-card">
-            <p class="eyebrow">Diagnosis</p>
-            <h2>Repair bench</h2>
-            <textarea id="diagnosisText">OLED display cracked. Touch response works. Battery health 86%. No liquid damage markers visible.</textarea>
-            <div class="parts-grid" id="partsGrid"></div>
-            <div class="parts-controls">
-              <div class="fee-row">
-                <label>Base inspection fee (INR)
-                  <input id="baseFeeInput" type="number" min="0" value="499">
-                </label>
+        <div id="rmDashboard">
+          <div class="partner-layout">
+            <div class="diagnosis-card">
+              <p class="eyebrow">Diagnosis</p>
+              <h2>Repair bench</h2>
+              <textarea id="diagnosisText">OLED display cracked. Touch response works. Battery health 86%. No liquid damage markers visible.</textarea>
+              <div class="parts-grid" id="partsGrid"></div>
+              <div class="parts-controls">
+                <div class="fee-row">
+                  <label>Base inspection fee (INR)
+                    <input id="baseFeeInput" type="number" min="0" value="499">
+                  </label>
+                </div>
+                <div class="add-part-row">
+                  <input id="newPartName" placeholder="New part name">
+                  <input id="newPartCost" type="number" min="0" placeholder="Price">
+                  <input id="newPartStock" type="number" min="0" placeholder="Stock">
+                  <button id="addPartBtn">Add</button>
+                </div>
               </div>
-              <div class="add-part-row">
-                <input id="newPartName" placeholder="New part name">
-                <input id="newPartCost" type="number" min="0" placeholder="Price">
-                <input id="newPartStock" type="number" min="0" placeholder="Stock">
-                <button id="addPartBtn">Add</button>
+              <button class="primary-action full" id="sendQuote">Send Quotation</button>
+            </div>
+            <div class="inventory-card">
+              <div class="section-title">
+                <p class="eyebrow">Inventory</p>
+                <h2>Parts availability</h2>
               </div>
+              <div id="inventoryList"></div>
+              <div class="section-title" style="margin-top:18px">
+                <p class="eyebrow">Sales</p>
+                <h2>Sold device notifications</h2>
+              </div>
+              <div id="soldNotification"></div>
             </div>
-            <button class="primary-action full" id="sendQuote">Send Quotation</button>
+            <form class="market-upload-card" id="marketUploadForm">
+              <div class="section-title">
+                <p class="eyebrow">Device on sell listing</p>
+                <h2>Upload refurbished device</h2>
+              </div>
+              <label>
+                Device model
+                <input id="listingModel" value="iPhone 13 128GB">
+              </label>
+              <label>
+                Grade
+                <select id="listingGrade">
+                  <option>A+</option>
+                  <option>A</option>
+                  <option>B</option>
+                  <option>C</option>
+                </select>
+              </label>
+              <label>
+                Device images (multiple)
+                <input id="listingImage" type="file" accept="image/*" multiple>
+              </label>
+              <label>
+                Sale price (your payout)
+                <input id="listingPrice" type="number" value="36999">
+              </label>
+              <label>
+                Warranty
+                <select id="listingWarranty">
+                  <option>12 months</option>
+                  <option>9 months</option>
+                  <option>6 months</option>
+                  <option>3 months</option>
+                </select>
+              </label>
+              <div class="commission-preview">
+                <span>Customer pays (incl. 10% service fee)</span>
+                <strong id="listingCommission">INR 40,699</strong>
+              </div>
+              <button class="primary-action full" type="submit">Upload to Device on sell</button>
+            </form>
           </div>
-          <div class="inventory-card">
+          <div class="custom-back-card">
             <div class="section-title">
-              <p class="eyebrow">Inventory</p>
-              <h2>Parts availability</h2>
+              <p class="eyebrow">Custom service</p>
+              <h2>Customize Back Cover</h2>
             </div>
-            <div id="inventoryList"></div>
-            <div class="section-title" style="margin-top:18px">
-              <p class="eyebrow">Sales</p>
-              <h2>Sold device notifications</h2>
-            </div>
-            <div id="soldNotification"></div>
+            <form id="backCoverForm">
+              <label>
+                Device model
+                <input id="bcModel" value="iPhone 14 Pro" placeholder="Device model">
+              </label>
+              <label>
+                Design / Color
+                <select id="bcDesign">
+                  <option>Matte Black</option>
+                  <option>Glossy White</option>
+                  <option>Carbon Fiber</option>
+                  <option>Transparent</option>
+                  <option>Custom Print</option>
+                </select>
+              </label>
+              <label>
+                Customer name
+                <input id="bcCustomer" value="Priya Sharma" placeholder="Customer name">
+              </label>
+              <div class="commission-preview">
+                <span>Service price</span>
+                <strong>INR 499</strong>
+              </div>
+              <button class="primary-action full" type="submit">Create Back Cover Order</button>
+            </form>
           </div>
-          <form class="market-upload-card" id="marketUploadForm">
-            <div class="section-title">
-              <p class="eyebrow">Device on sell listing</p>
-              <h2>Upload refurbished device</h2>
-            </div>
-            <label>
-              Device model
-              <input id="listingModel" value="iPhone 13 128GB">
-            </label>
-            <label>
-              Grade
-              <select id="listingGrade">
-                <option>A+</option>
-                <option>A</option>
-                <option>B</option>
-                <option>C</option>
-              </select>
-            </label>
-            <label>
-              Device images (multiple)
-              <input id="listingImage" type="file" accept="image/*" multiple>
-            </label>
-            <label>
-              Sale price (your payout)
-              <input id="listingPrice" type="number" value="36999">
-            </label>
-            <label>
-              Warranty
-              <select id="listingWarranty">
-                <option>12 months</option>
-                <option>9 months</option>
-                <option>6 months</option>
-                <option>3 months</option>
-              </select>
-            </label>
-            <div class="commission-preview">
-              <span>Customer pays (incl. 10% service fee)</span>
-              <strong id="listingCommission">INR 40,699</strong>
-            </div>
-            <button class="primary-action full" type="submit">Upload to Device on sell</button>
-          </form>
+          <div id="rmAssignedList" style="margin-top:18px">
+            <p class="eyebrow">Assigned repairs</p>
+            <div id="rmRequestsList" class="request-list"></div>
+          </div>
         </div>
-        <div class="custom-back-card">
-          <div class="section-title">
-            <p class="eyebrow">Custom service</p>
-            <h2>Customize Back Cover</h2>
+        <div id="rmRequestView" style="display:none">
+          <div class="detail-topbar">
+            <button id="rmDetailBackBtn" class="secondary-action">← Back to repairs</button>
+            <span id="rmDetailTitle" style="font-weight:700;font-size:18px"></span>
+            <span id="rmDetailStatus" class="status-pill"></span>
           </div>
-          <form id="backCoverForm">
-            <label>
-              Device model
-              <input id="bcModel" value="iPhone 14 Pro" placeholder="Device model">
-            </label>
-            <label>
-              Design / Color
-              <select id="bcDesign">
-                <option>Matte Black</option>
-                <option>Glossy White</option>
-                <option>Carbon Fiber</option>
-                <option>Transparent</option>
-                <option>Custom Print</option>
-              </select>
-            </label>
-            <label>
-              Customer name
-              <input id="bcCustomer" value="Priya Sharma" placeholder="Customer name">
-            </label>
-            <div class="commission-preview">
-              <span>Service price</span>
-              <strong>INR 499</strong>
-            </div>
-            <button class="primary-action full" type="submit">Create Back Cover Order</button>
-          </form>
+          <div id="rmRequestContent"></div>
         </div>
       </section>
 

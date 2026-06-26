@@ -1,6 +1,6 @@
 const statuses = [
   "Request Submitted",
-  "Requirements Provided",
+  "Under Review",
   "Quotation Sent",
   "Waiting Approval",
   "Pickup Scheduled",
@@ -82,6 +82,11 @@ const defaultState = {
   activePortal: null,
   activeUser: null,
   activeRequestId: "RM-1024",
+  coordDetailMode: false,
+  techDetailMode: false,
+  rmDetailMode: false,
+  custDetailMode: false,
+  adminDetailMode: false,
   applications: [
     { name: "Admin Team", email: "admin@repairingmaster.in", phone: "+91-9999999999", role: "Admin", location: "All India", details: { "Qualifications & reason": "Platform operations manager" }, status: "Approved" }
   ],
@@ -104,6 +109,8 @@ const defaultState = {
     {
       id: "RM-1024",
       customer: "Priya Sharma",
+      phone: "+91-98765-43210",
+      deviceType: "Smartphone",
       brand: "Apple",
       model: "iPhone 14 Pro",
       issue: "Screen damage",
@@ -132,6 +139,8 @@ const defaultState = {
     {
       id: "RM-1025",
       customer: "Aarav Mehta",
+      phone: "+91-87654-32109",
+      deviceType: "Smartphone",
       brand: "Samsung",
       model: "Galaxy S24",
       issue: "Battery issue",
@@ -161,6 +170,8 @@ const defaultState = {
     {
       id: "RM-1026",
       customer: "Neha Verma",
+      phone: "+91-76543-21098",
+      deviceType: "Smartphone",
       brand: "Google",
       model: "Pixel 9",
       issue: "Charging port fault",
@@ -225,6 +236,9 @@ function normalizeState(source) {
   const requests = (source.requests || structuredClone(defaultState.requests)).map((r) => ({
     ...r,
     conditionImages: r.conditionImages || [],
+    requestImages: r.requestImages || [],
+    phone: r.phone || '',
+    deviceType: r.deviceType || 'Smartphone',
     invoiceSent: r.invoiceSent || false,
     paymentMethod: r.paymentMethod || "",
     requirements: r.requirements || { backCover: "", glassType: "" },
@@ -322,6 +336,56 @@ function switchView(view) {
   saveState();
 }
 
+// ─── Hash-based routing for per-request URLs ─────
+const ROLE_DETAIL_MODES = {
+  coordinator: 'coordDetailMode',
+  technician: 'techDetailMode',
+  repairmaster: 'rmDetailMode',
+  customer: 'custDetailMode',
+  admin: 'adminDetailMode'
+};
+
+function navigateTo(hash) {
+  window.location.hash = hash;
+}
+
+function handleRoute() {
+  const hash = window.location.hash.slice(1) || '';
+  const parts = hash.split('/').filter(Boolean);
+  if (!hash) {
+    if (state.activePortal) switchView(portalLanding[state.activePortal]);
+    return;
+  }
+  const role = parts[0];
+  // role/request/ID — open detail view for any role
+  if (parts[1] === 'request' && parts[2]) {
+    const modeKey = ROLE_DETAIL_MODES[role];
+    if (modeKey && state.requests.find(r => r.id === parts[2])) {
+      state.activeRequestId = parts[2];
+      state.activeView = role;
+      // Clear all detail modes first
+      Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
+      state[modeKey] = true;
+      renderAll();
+      return;
+    }
+  }
+  // Simple role view
+  if (portalAccess[state.activePortal]?.includes(role)) {
+    Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
+    switchView(role);
+  }
+}
+
+window.addEventListener('hashchange', handleRoute);
+
+function closeRoleDetail(role) {
+  const modeKey = ROLE_DETAIL_MODES[role];
+  if (modeKey) state[modeKey] = false;
+  window.location.hash = '#' + role;
+  renderAll();
+}
+
 function applyPortalAccess() {
   const allowed = allowedViews();
   const select = document.getElementById("operationSelect");
@@ -379,10 +443,33 @@ function renderCustomer() {
     nameInput.value = state.activeUser.name;
   }
 
-  // Requirements section - show only at status 0 (before quote)
+  // Status guidance — role-specific message per status
+  const guidance = document.getElementById("statusGuidance");
+  if (guidance) {
+    const customerMsgs = {
+      0: "Your request has been submitted. A coordinator will review and accept it shortly.",
+      1: "Your request is under review. Please provide your back cover and glass preferences below to help us prepare an accurate quotation.",
+      2: "Your quotation is ready. Review the details and approve to proceed.",
+      3: "Quotation approved! We'll schedule a pickup for your device.",
+      4: "A technician has been assigned for pickup. Keep your device ready.",
+      5: "Device picked up. Our repairmaster is inspecting it.",
+      6: "Your device is under diagnosis.",
+      7: "Repair in progress.",
+      8: "Quality check in progress.",
+      9: "Invoice ready — complete your payment to proceed.",
+      10: "Payment received. We'll prepare your device for delivery.",
+      11: "Your device is ready for delivery.",
+      12: "Your device is out for delivery!",
+      13: "Device delivered. Thank you for choosing RepairingMaster!",
+      14: "Request closed. Thank you!"
+    };
+    guidance.textContent = customerMsgs[request.statusIndex] || '';
+  }
+
+  // Requirements section - show at status 1 (under review) before quote sent
   const reqSection = document.getElementById("requirementsSection");
   if (reqSection) {
-    reqSection.style.display = request.statusIndex === 0 ? "block" : "none";
+    reqSection.style.display = request.statusIndex === 1 ? "block" : "none";
     if (request.requirements) {
       document.getElementById("backCoverInput").value = request.requirements.backCover || "";
       document.getElementById("glassInput").value = request.requirements.glassType || "";
@@ -517,78 +604,307 @@ function renderCustomer() {
   }).join("");
 }
 
+// Coordinator action needed per status
+const COORD_ACTIONS = {
+  0:  { urgency: 'critical', label: 'Accept & review',   msg: 'New request — accept and review customer requirements' },
+  1:  { urgency: 'high',     label: 'Prepare quotation', msg: 'Under review — evaluate device issue & send quotation' },
+  2:  { urgency: 'waiting',  label: 'Wait for approval', msg: 'Quotation sent — customer is reviewing' },
+  3:  { urgency: 'critical', label: 'Assign team',       msg: 'Customer approved — assign technician & repairmaster' },
+  4:  { urgency: 'info',     label: 'Monitor pickup',    msg: 'Technician assigned — pickup in progress' },
+  5:  { urgency: 'info',     label: 'Monitor diagnosis', msg: 'Device picked up — repairmaster is diagnosing' },
+  6:  { urgency: 'info',     label: 'Monitor repair',    msg: 'Device under diagnosis' },
+  7:  { urgency: 'info',     label: 'Monitor QC',        msg: 'Repair in progress' },
+  8:  { urgency: 'high',     label: 'Send invoice',      msg: 'Quality check done — generate & send invoice' },
+  9:  { urgency: 'waiting',  label: 'Wait for payment',  msg: 'Invoice sent — waiting for customer payment' },
+  10: { urgency: 'critical', label: 'Verify payment',    msg: 'Payment initiated — verify and confirm' },
+  11: { urgency: 'high',     label: 'Assign delivery',   msg: 'Payment confirmed — assign technician for delivery' },
+  12: { urgency: 'info',     label: 'Delivery in progress', msg: 'Device out for delivery' },
+  13: { urgency: 'high',     label: 'Close request',     msg: 'Device delivered & payment received — close ticket' },
+  14: { urgency: 'done',     label: 'Completed',         msg: 'Request closed' }
+};
+
+function getCoordActionsForRequest(r) {
+  const action = COORD_ACTIONS[r.statusIndex] || { urgency: 'info', label: 'Review', msg: '' };
+  return action;
+}
+
+function escHtml(s) { return String(s || '').replace(/[&<>"']/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]; }); }
+
 function renderCoordinator() {
+  // ── Detail mode: show full request wizard ──
+  if (state.coordDetailMode) {
+    document.getElementById("coordinatorDashboard").style.display = 'none';
+    document.getElementById("coordinatorRequestView").style.display = '';
+    const req = activeRequest();
+    renderCoordinatorRequestDetail(req);
+    return;
+  }
+
+  // ── Dashboard mode ──
+  document.getElementById("coordinatorDashboard").style.display = '';
+  document.getElementById("coordinatorRequestView").style.display = 'none';
+
   const requests = state.requests || [];
-  const orders = state.marketOrders || [];
   const open = requests.filter((r) => r.statusIndex < statuses.length - 1).length;
   const closed = requests.filter((r) => r.statusIndex === statuses.length - 1).length;
   const revenue = requests.reduce((sum, r) => sum + r.quoteAmount, 0);
-  const pendingDeliveries = orders.filter(o => o.statusIndex < 4).length;
   document.getElementById("openTickets").textContent = open;
   document.getElementById("revenueMetric").textContent = formatCurrency(revenue);
-  document.getElementById("avgRepairTime").textContent = closed ? `${Math.round(closed * 2.5)}h` : "N/A";
-  document.getElementById("customerRating").textContent = open + closed ? (4.5 + (closed / (open + closed || 1)) * 0.4).toFixed(1) : "4.8";
-  if (!state.requests.length) {
-    document.getElementById("requestList").innerHTML = `<div class="empty-state">No service requests yet. Create one from the Customer portal.</div>`;
-  } else {
-    document.getElementById("requestList").innerHTML = state.requests.map((request) => `
-    <button class="request-row" data-request="${request.id}">
-      <div>
-        <h3>${request.id} - ${request.model}</h3>
-        <p>${request.customer} | ${request.issue} | ${request.repairPartner}</p>
-      </div>
-      <span class="status-pill">${statuses[request.statusIndex]}</span>
-    </button>
-  `).join("");
+  document.getElementById("avgRepairTime").textContent = closed ? `${Math.round(closed * 2.5)}h` : "—";
 
-    document.querySelectorAll(".request-row").forEach((row) => {
+  const critical = []; const high = []; const info = [];
+  requests.forEach(r => {
+    if (r.statusIndex >= statuses.length - 1) return;
+    const a = getCoordActionsForRequest(r);
+    if (a.urgency === 'critical') critical.push(r);
+    else if (a.urgency === 'high') high.push(r);
+    else if (a.urgency === 'info' || a.urgency === 'waiting') info.push(r);
+  });
+
+  const pendingCount = critical.length + high.length;
+  document.getElementById("pendingActionCount").textContent = pendingCount;
+  document.getElementById("pendingCountBadge").textContent = pendingCount;
+
+  if (critical.length && state._lastCriticalCount !== critical.length) {
+    showToast(`${critical.length} urgent action${critical.length > 1 ? 's' : ''} need${critical.length > 1 ? '' : ''}s your attention`);
+    state._lastCriticalCount = critical.length;
+  } else if (!critical.length) { state._lastCriticalCount = 0; }
+
+  const pendingEl = document.getElementById("pendingActionsList");
+  const allPending = [...critical, ...high, ...info];
+  if (!allPending.length) {
+    pendingEl.innerHTML = '<div class="empty-state" style="padding:12px">All caught up — no pending actions</div>';
+  } else {
+    pendingEl.innerHTML = allPending.map(r => {
+      const a = getCoordActionsForRequest(r);
+      return `<div class="pending-action-item ${a.urgency === 'critical' ? 'urgent-critical' : a.urgency === 'high' ? 'urgent-high' : ''}" data-rid="${r.id}" onclick="navigateTo('#coordinator/request/${r.id}')">
+        <span class="pending-action-icon">${a.urgency === 'critical' ? '🔴' : a.urgency === 'high' ? '🟠' : '🔵'}</span>
+        <div class="pending-action-body">
+          <strong>${r.id} — ${r.model}</strong>
+          <span>${a.label}: ${a.msg}</span>
+          <span class="pending-action-meta">${r.customer}</span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  const badge = document.getElementById("notifBadge");
+  if (badge && state.portal === 'coordinator') {
+    const bc = pendingActionCount();
+    badge.textContent = bc || '';
+    badge.style.display = bc ? 'flex' : 'none';
+    badge.style.background = critical.length ? '#e74c3c' : '#f39c12';
+  }
+
+  if (!requests.length) {
+    document.getElementById("requestList").innerHTML = '<div class="empty-state">No service requests yet.</div>';
+  } else {
+    document.getElementById("requestList").innerHTML = requests.map((r) => {
+      const a = getCoordActionsForRequest(r);
+      const rowClass = a.urgency === 'critical' ? 'request-row row-critical' : a.urgency === 'high' ? 'request-row row-high' : 'request-row';
+      return `<button class="${rowClass}" data-request="${r.id}">
+        <div>
+          <h3>${r.id} - ${r.model}</h3>
+          <p>${r.customer} | ${r.issue}${a.urgency !== 'done' && a.urgency !== 'waiting' ? ` — ${a.label}` : ''}</p>
+        </div>
+        <span class="status-pill ${a.urgency === 'critical' ? 'pill-critical' : a.urgency === 'high' ? 'pill-high' : ''}">${statuses[r.statusIndex]}</span>
+      </button>`;
+    }).join("");
+    document.querySelectorAll(".request-row").forEach(row => {
       row.addEventListener("click", () => {
-        state.activeRequestId = row.dataset.request;
-        syncAssignmentFields();
-        renderAll();
-        showToast(`${state.activeRequestId} selected`);
+        navigateTo(`#coordinator/request/${row.dataset.request}`);
       });
     });
   }
 
-  syncAssignmentFields();
-
-  const orderList = document.getElementById("orderList");
-  if (!orderList) return;
-  const pendingOrders = state.marketOrders.filter((o) => o.statusIndex < orderStatuses.length - 1);
-  if (!pendingOrders.length) {
-    orderList.innerHTML = `<div class="empty-state">No marketplace orders pending.</div>`;
-    document.getElementById("orderAssignPanel").style.display = "none";
-    return;
+  // Side panel: compact preview
+  const req = activeRequest();
+  const detailEl = document.getElementById("coordinatorDetailContent");
+  document.getElementById("detailPanelTitle").textContent = req ? `${req.id}` : 'Control desk';
+  if (!req) {
+    detailEl.innerHTML = '<div class="empty-state" style="padding:20px">Select a request from the list</div>';
+  } else {
+    const a = getCoordActionsForRequest(req);
+    const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+    detailEl.innerHTML = `
+      <div class="coord-detail-grid">
+        <div class="coord-detail-section">
+          <p class="eyebrow">${statuses[req.statusIndex]}</p>
+          <div style="background:${a.urgency === 'critical' ? '#fef5f5' : a.urgency === 'high' ? '#fefaf0' : '#f8fafb'};border-left:3px solid ${a.urgency === 'critical' ? '#e74c3c' : a.urgency === 'high' ? '#f39c12' : 'var(--line)'};padding:8px 12px;border-radius:4px;font-size:13px">
+            <strong>${a.label}</strong>: ${a.msg}
+          </div>
+        </div>
+        <table class="coord-info-table">
+          <tr><td>Customer</td><td>${escHtml(req.customer)}</td></tr>
+          <tr><td>Phone</td><td>${escHtml(req.phone || '—')}</td></tr>
+          <tr><td>Device</td><td>${req.brand || ''} ${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+        </table>
+        <button class="primary-action full" onclick="navigateTo('#coordinator/request/${req.id}')" style="margin-top:8px">Open full detail →</button>
+      </div>`;
   }
-  document.getElementById("orderAssignPanel").style.display = "grid";
-  orderList.innerHTML = pendingOrders.map((order, i) => `
-    <button class="request-row order-row" data-order="${i}">
-      <div>
-        <h3>${order.id} - ${order.itemModel}</h3>
-        <p>${order.repairMaster} | ${orderStatuses[order.statusIndex]}</p>
-      </div>
-      <span class="status-pill">${orderStatuses[order.statusIndex]}</span>
-    </button>
-  `).join("");
+}
 
-  document.querySelectorAll(".order-row").forEach((row) => {
-    row.addEventListener("click", () => {
-      const order = state.marketOrders[Number(row.dataset.order)];
-      document.getElementById("deliveryTech").value = order.assignedTech || "Ravi - Mumbai West";
-      document.getElementById("deliveryAddress").value = order.address || "";
-      document.getElementById("deliveryAddress").dataset.editOrder = row.dataset.order;
-    });
+// ─── Full request detail wizard (step-by-step) ─────
+function renderCoordinatorRequestDetail(req) {
+  if (!req) { document.getElementById("coordinatorRequestContent").innerHTML = '<div class="empty-state">Request not found</div>'; return; }
+
+  const a = getCoordActionsForRequest(req);
+  const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+  const isClosed = req.statusIndex >= statuses.length - 1;
+
+  // Step progress
+  const steps = statuses.map((s, i) => {
+    const cls = i < req.statusIndex ? 'step-done' : i === req.statusIndex ? 'step-current' : 'step-upcoming';
+    return `<span class="step-dot ${cls}" title="${s}"></span>`;
+  }).join('');
+
+  document.getElementById("detailViewTitle").textContent = `${req.id} — ${req.model}`;
+  document.getElementById("detailViewStatus").textContent = statuses[req.statusIndex];
+  document.getElementById("detailViewStatus").className = `status-pill ${a.urgency === 'critical' ? 'pill-critical' : a.urgency === 'high' ? 'pill-high' : ''}`;
+
+  const content = document.getElementById("coordinatorRequestContent");
+  content.innerHTML = `
+    <div class="rd-steps">${steps}</div>
+    <div class="rd-labels">${statuses.map((s, i) => `<span class="step-label ${i <= req.statusIndex ? 'done' : ''}">${s}</span>`).join('')}</div>
+
+    ${!isClosed ? `
+    <div class="rd-action-card" style="border-left:4px solid ${a.urgency === 'critical' ? '#e74c3c' : a.urgency === 'high' ? '#f39c12' : '#0b7f7a'}">
+      <div class="rd-action-header">
+        <span class="rd-action-step">Step ${req.statusIndex + 1}:</span>
+        <span class="rd-action-label" style="font-weight:700;font-size:18px">${a.label}</span>
+      </div>
+      <p class="rd-action-msg">${a.msg}</p>
+      <div class="rd-action-buttons">${renderDetailActions(req)}</div>
+    </div>` : '<div class="rd-action-card" style="background:#e8f4f3;text-align:center;padding:30px"><strong>✓ Request completed</strong></div>'}
+
+    <div class="rd-grid">
+      <div class="rd-info-card">
+        <p class="eyebrow">Customer details</p>
+        <table class="coord-info-table">
+          <tr><td>Name</td><td>${escHtml(req.customer)}</td></tr>
+          <tr><td>Phone</td><td>${escHtml(req.phone || '—')}</td></tr>
+          <tr><td>Address</td><td>${escHtml(req.address)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Device details</p>
+        <table class="coord-info-table">
+          <tr><td>Type</td><td>${req.deviceType || 'Smartphone'}</td></tr>
+          <tr><td>Brand</td><td>${req.brand || '—'}</td></tr>
+          <tr><td>Model</td><td>${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+        </table>
+      </div>
+      ${req.requirements && req.requirements.backCover ? `
+      <div class="rd-info-card">
+        <p class="eyebrow">Customer requirements</p>
+        <table class="coord-info-table">
+          <tr><td>Back cover</td><td>${escHtml(req.requirements.backCover)}</td></tr>
+          <tr><td>Glass type</td><td>${escHtml(req.requirements.glassType)}</td></tr>
+        </table>
+      </div>` : ''}
+      ${req.quoteAmount > 0 ? `
+      <div class="rd-info-card">
+        <p class="eyebrow">Quotation</p>
+        <div style="font-size:24px;font-weight:700;color:var(--green)">${formatCurrency(req.quoteAmount)}</div>
+        ${req.quoteItems?.length ? req.quoteItems.map(i => `<div class="quote-item-row"><span>${escHtml(i.name)}</span><span>${formatCurrency(i.cost)}</span></div>`).join('') : ''}
+      </div>` : ''}
+    </div>
+
+    ${imgs.length ? `
+    <div class="rd-info-card" style="margin-top:14px">
+      <p class="eyebrow">Device photos</p>
+      <div class="rd-photos">${imgs.map(url => `<img src="${url}" alt="Device photo" loading="lazy">`).join('')}</div>
+    </div>` : ''}
+  `;
+}
+
+function renderDetailActions(req) {
+  const si = req.statusIndex;
+  const rid = req.id;
+  let html = '';
+
+  if (si === 0) {
+    html += `<button class="primary-action rd-btn rd-btn-accept" data-rid="${rid}">✓ Accept Request</button>
+             <button class="secondary-action rd-btn rd-btn-reject" data-rid="${rid}" style="color:#e74c3c">✗ Reject</button>`;
+  } else if (si === 1) {
+    html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer will provide requirements (back cover, glass type). Then prepare and send quotation from the <strong>RepairingMaster</strong> portal.</p>
+             <button class="primary-action rd-btn rd-btn-view-rm" onclick="navigateTo('#repairmaster')">Go to RepairingMaster →</button>`;
+  } else if (si === 3) {
+    html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer approved! Assign technician and repair partner:</p>
+             <select class="rd-pickup-tech" data-rid="${rid}"><option>Ravi - Mumbai West</option><option>Arjun - Bengaluru Central</option><option>Imran - Delhi NCR</option></select>
+             <select class="rd-repair-partner" data-rid="${rid}" style="margin-top:4px"><option>FixHub Andheri</option><option>TechCare Koramangala</option><option>Prime Mobile Lab Noida</option></select>
+             <button class="primary-action rd-btn rd-btn-assign" data-rid="${rid}" style="margin-top:8px">✓ Assign & Schedule Pickup</button>`;
+  } else if (si === 10) {
+    html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Payment has been initiated. Verify and confirm:</p>
+             <button class="primary-action rd-btn rd-btn-verify-payment" data-rid="${rid}" style="background:#27ae60">✓ Confirm Payment Received</button>`;
+  } else if (si >= 4 && si < 14 && si !== 10) {
+    html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Current step: monitoring. Progress updates will appear here.</p>`;
+    if (si >= 4 && si !== 10) {
+      html += `<button class="secondary-action rd-btn rd-btn-assign" data-rid="${rid}">Update technician assignment</button>`;
+    }
+  }
+
+  return html;
+}
+
+// ─── Coordinator action handlers (delegated) ─────
+function setupCoordinatorHandlers() {
+  const container = document.getElementById("coordinatorRequestContent") || document.body;
+  container.addEventListener("click", async (e) => {
+    const btn = e.target.closest('button.rd-btn');
+    if (!btn) return;
+    const rid = btn.dataset.rid;
+    const request = state.requests.find(r => r.id === rid) || activeRequest();
+    if (!request) return;
+
+    if (btn.classList.contains('rd-btn-accept')) {
+      request.statusIndex = 1; saveState(); renderAll();
+      await notifyRoles(['coordinator'], `${request.id}: Accepted — prepare quotation now`, 'success', 'coordinator');
+      if (request.customer_id) await createNotification({ user_id: request.customer_id, message: `Your request ${request.id} has been accepted and is under review.`, type: 'info' });
+      showToast('Request accepted');
+    }
+    if (btn.classList.contains('rd-btn-reject')) {
+      request.statusIndex = 14; saveState(); renderAll();
+      if (request.customer_id) await createNotification({ user_id: request.customer_id, message: `Your request ${request.id} could not be accepted at this time.`, type: 'warning' });
+      showToast('Request rejected');
+    }
+    if (btn.classList.contains('rd-btn-assign')) {
+      const techEl = container.querySelector(`.rd-pickup-tech[data-rid="${rid}"]`);
+      const partnerEl = container.querySelector(`.rd-repair-partner[data-rid="${rid}"]`);
+      if (techEl) request.pickupTech = techEl.value;
+      if (partnerEl) request.repairPartner = partnerEl.value;
+      request.statusIndex = Math.max(request.statusIndex, 4);
+      saveState(); renderAll();
+      await notifyRoles(['technician'], `Pickup scheduled for ${request.id}`, 'info', 'technician');
+      await notifyRoles(['coordinator'], `${request.id}: Technician & repair partner assigned`, 'info', 'coordinator');
+      showToast('Technician & repair partner assigned');
+    }
+    if (btn.classList.contains('rd-btn-verify-payment')) {
+      request.paymentStatus = "Paid";
+      request.statusIndex = Math.max(request.statusIndex, 11);
+      saveState(); renderAll();
+      await notifyRoles(['coordinator'], `Payment verified for ${request.id}`, 'success', 'coordinator');
+      showToast('Payment confirmed');
+    }
   });
 }
+setupCoordinatorHandlers();
 
-function syncAssignmentFields() {
-  const request = activeRequest();
-  document.getElementById("pickupTech").value = request.pickupTech;
-  document.getElementById("repairPartner").value = request.repairPartner;
-}
+document.getElementById("detailBackBtn").addEventListener("click", () => closeRoleDetail('coordinator'));
 
 function renderTechnician() {
+  // Detail mode
+  if (state.techDetailMode) {
+    document.getElementById("techDashboard").style.display = 'none';
+    document.getElementById("techRequestView").style.display = '';
+    renderTechDetail(activeRequest());
+    return;
+  }
+  document.getElementById("techDashboard").style.display = '';
+  document.getElementById("techRequestView").style.display = 'none';
+
   const request = activeRequest();
   document.getElementById("techJobTitle").textContent = request ? `Pickup ${request.id}` : "No active job";
   document.getElementById("techJobDesc").textContent = request ? `${request.model} - ${request.issue}` : "No requests yet.";
@@ -640,11 +956,27 @@ function renderTechnician() {
     });
   });
 
+  // Assigned requests list
+  const techName = state.activeUser?.name || '';
+  const assigned = state.requests.filter(r => r.pickupTech === techName && r.statusIndex < 14);
+  const listEl = document.getElementById("techRequestsList");
+  if (!assigned.length) {
+    listEl.innerHTML = '<div class="empty-state">No assigned jobs</div>';
+  } else {
+    listEl.innerHTML = assigned.map(r => `
+      <button class="request-row" onclick="navigateTo('#technician/request/${r.id}')">
+        <div><h3>${r.id} — ${r.model}</h3><p>${r.customer} | ${r.issue}</p></div>
+        <span class="status-pill">${statuses[r.statusIndex]}</span>
+      </button>
+    `).join('');
+  }
+
+  // Market deliveries
   const deliveryList = document.getElementById("techDeliveryList");
   if (deliveryList) {
     const myDeliveries = state.marketOrders.filter((o) => o.assignedTech && o.statusIndex < 4);
     if (!myDeliveries.length) {
-      deliveryList.innerHTML = `<div class="empty-state">No delivery tasks assigned.</div>`;
+      deliveryList.innerHTML = '<div class="empty-state">No delivery tasks assigned.</div>';
     } else {
       deliveryList.innerHTML = myDeliveries.map((o, i) => `
         <div class="tech-delivery-card">
@@ -653,16 +985,14 @@ function renderTechnician() {
             <p>Pickup from ${o.repairMaster} &rarr; Deliver to ${o.address}</p>
           </div>
           <span class="status-pill">${orderStatuses[o.statusIndex]}</span>
-          ${o.statusIndex < 4 ? `<button class="adv-order" data-oi="${i}">Advance</button>` : ""}
+          ${o.statusIndex < 4 ? '<button class="adv-order" data-oi="' + i + '">Advance</button>' : ''}
         </div>
-      `).join("");
-
+      `).join('');
       document.querySelectorAll(".adv-order").forEach((btn) => {
         btn.addEventListener("click", () => {
           const o = state.marketOrders[Number(btn.dataset.oi)];
           o.statusIndex = Math.min(o.statusIndex + 1, orderStatuses.length - 1);
-          saveState();
-          renderAll();
+          saveState(); renderAll();
           showToast(`${o.id} moved to ${orderStatuses[o.statusIndex]}`);
         });
       });
@@ -670,7 +1000,89 @@ function renderTechnician() {
   }
 }
 
+function renderTechDetail(req) {
+  if (!req) { document.getElementById("techRequestContent").innerHTML = '<div class="empty-state">Request not found</div>'; return; }
+  document.getElementById("techDetailTitle").textContent = `${req.id} — ${req.model}`;
+  document.getElementById("techDetailStatus").textContent = statuses[req.statusIndex];
+  const isDelivery = req.statusIndex >= 11;
+  const content = document.getElementById("techRequestContent");
+  const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+  content.innerHTML = `
+    <div class="rd-action-card" style="border-left:4px solid var(--teal)">
+      <div class="rd-action-header"><span class="rd-action-step">${isDelivery ? 'Delivery' : 'Pickup'} task</span></div>
+      <p class="rd-action-msg">${req.customer} | ${req.address} | ${req.model}<br>${isDelivery ? 'Deliver the repaired device' : 'Customer OTP required before device collection'}</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        ${!isDelivery ? '<input id="techOtpInput" maxlength="4" value="' + (req.pickupOtp || '4821') + '" style="width:70px;text-align:center;font-size:18px;font-weight:700">' : ''}
+        ${!isDelivery ? '<button class="primary-action rd-btn" id="techVerifyOtpBtn">Verify OTP</button>' : ''}
+        <button class="primary-action rd-btn" id="techMarkCheckBtn" style="background:#27ae60">✓ Mark Complete</button>
+      </div>
+    </div>
+    <div class="rd-grid">
+      <div class="rd-info-card">
+        <p class="eyebrow">Customer</p>
+        <table class="coord-info-table">
+          <tr><td>Name</td><td>${escHtml(req.customer)}</td></tr>
+          <tr><td>Phone</td><td>${escHtml(req.phone || '—')}</td></tr>
+          <tr><td>Address</td><td>${escHtml(req.address)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Device</p>
+        <table class="coord-info-table">
+          <tr><td>Brand</td><td>${req.brand || '—'}</td></tr>
+          <tr><td>Model</td><td>${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Status</p>
+        <div style="font-size:13px;display:grid;gap:4px">
+          ${[["accepted", "Technician accepted"], ["otp", "OTP verified"], ["photos", "Photos captured"], ["handover", "Handed to RM"], ["delivery", "Delivery done"], ["payment_collected", "Payment collected"]].map(([k, l]) => `
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="checkbox" ${req.checks[k] ? 'checked' : ''} data-tech-check="${k}" style="cursor:pointer">
+              <span style="${req.checks[k] ? 'text-decoration:line-through;color:var(--muted)' : ''}">${l}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+    ${imgs.length ? '<div class="rd-info-card" style="margin-top:14px"><p class="eyebrow">Photos</p><div class="rd-photos">' + imgs.map(u => '<img src="' + u + '" loading="lazy">').join('') + '</div></div>' : ''}
+  `;
+  // Bind tech detail actions
+  content.querySelectorAll('[data-tech-check]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const req2 = activeRequest(); if (!req2) return;
+      req2.checks[cb.dataset.techCheck] = cb.checked;
+      if (cb.dataset.techCheck === 'otp') req2.otpVerified = cb.checked;
+      if (cb.dataset.techCheck === 'payment_collected' && req2.paymentMethod === 'Cash on Delivery' && cb.checked) req2.paymentStatus = 'Paid';
+      saveState(); renderAll();
+    });
+  });
+  content.querySelector('#techVerifyOtpBtn')?.addEventListener('click', () => {
+    const req2 = activeRequest(); if (!req2) return;
+    req2.checks.otp = true; req2.otpVerified = true;
+    saveState(); renderAll(); showToast('OTP verified');
+  });
+  content.querySelector('#techMarkCheckBtn')?.addEventListener('click', () => {
+    const req2 = activeRequest(); if (!req2) return;
+    req2.statusIndex = Math.min(req2.statusIndex + 1, statuses.length - 1);
+    saveState(); renderAll(); showToast('Task progressed');
+  });
+}
+
+document.getElementById("techDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('technician'));
+
 function renderRepairingMaster() {
+  // Detail mode
+  if (state.rmDetailMode) {
+    document.getElementById("rmDashboard").style.display = 'none';
+    document.getElementById("rmRequestView").style.display = '';
+    renderRmDetail(activeRequest());
+    return;
+  }
+  document.getElementById("rmDashboard").style.display = '';
+  document.getElementById("rmRequestView").style.display = 'none';
+
   const request = activeRequest();
   // Show active request on bench
   const benchTitle = document.querySelector("#repairmaster .diagnosis-card h2");
@@ -730,6 +1142,21 @@ function renderRepairingMaster() {
     }
   }
 
+  // Assigned requests list
+  const rmName = state.activeUser?.name || '';
+  const assigned = state.requests.filter(r => r.repairPartner === rmName && r.statusIndex < 14);
+  const listEl = document.getElementById("rmRequestsList");
+  if (!assigned.length) {
+    listEl.innerHTML = '<div class="empty-state">No assigned repair jobs</div>';
+  } else {
+    listEl.innerHTML = assigned.map(r => `
+      <button class="request-row" onclick="navigateTo('#rm/request/${r.id}')">
+        <div><h3>${r.id} — ${r.model}</h3><p>${r.customer} | ${r.issue}</p></div>
+        <span class="status-pill">${statuses[r.statusIndex]}</span>
+      </button>
+    `).join('');
+  }
+
   const feeInput = document.getElementById("minServiceFeeInput");
   if (feeInput) feeInput.value = state.minServiceFee || 150;
   const taxInput = document.getElementById("taxPercentInput");
@@ -738,6 +1165,55 @@ function renderRepairingMaster() {
   if (scInput) scInput.value = state.serviceChargePercent || 0;
   updateListingCommission();
 }
+
+function renderRmDetail(req) {
+  if (!req) { document.getElementById("rmRequestContent").innerHTML = '<div class="empty-state">Request not found</div>'; return; }
+  document.getElementById("rmDetailTitle").textContent = `${req.id} — ${req.model}`;
+  document.getElementById("rmDetailStatus").textContent = statuses[req.statusIndex];
+  const content = document.getElementById("rmRequestContent");
+  const imgs = [...(req.requestImages || []), ...(req.conditionImages || [])].filter(Boolean);
+  content.innerHTML = `
+    <div class="rd-action-card" style="border-left:4px solid #8e44ad">
+      <div class="rd-action-header"><span class="rd-action-step">Repair job</span></div>
+      <p class="rd-action-msg">${req.customer} | ${req.model} | ${req.issue}</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="primary-action rd-btn" id="rmAdvStatusBtn" style="background:#8e44ad">Advance Status</button>
+      </div>
+    </div>
+    <div class="rd-grid">
+      <div class="rd-info-card">
+        <p class="eyebrow">Customer</p>
+        <table class="coord-info-table">
+          <tr><td>Name</td><td>${escHtml(req.customer)}</td></tr>
+          <tr><td>Phone</td><td>${escHtml(req.phone || '—')}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Device</p>
+        <table class="coord-info-table">
+          <tr><td>Brand</td><td>${req.brand || '—'}</td></tr>
+          <tr><td>Model</td><td>${escHtml(req.model)}</td></tr>
+          <tr><td>Issue</td><td>${escHtml(req.issue)}</td></tr>
+        </table>
+      </div>
+      <div class="rd-info-card">
+        <p class="eyebrow">Diagnosis</p>
+        <textarea placeholder="Enter diagnosis notes..." style="width:100%;min-height:80px;border:1px solid var(--border);border-radius:6px;padding:8px;font-size:13px">${escHtml(req.diagnosis || '')}</textarea>
+      </div>
+    </div>
+    ${imgs.length ? '<div class="rd-info-card" style="margin-top:14px"><p class="eyebrow">Photos</p><div class="rd-photos">' + imgs.map(u => '<img src="' + u + '" loading="lazy">').join('') + '</div></div>' : ''}
+  `;
+  content.querySelector('#rmAdvStatusBtn')?.addEventListener('click', () => {
+    const req2 = activeRequest(); if (!req2) return;
+    const diag = content.querySelector('textarea')?.value;
+    if (diag) req2.diagnosis = diag;
+    req2.statusIndex = Math.min(req2.statusIndex + 1, statuses.length - 1);
+    if (req2.statusIndex >= 8) { /* repair in progress or later */ }
+    saveState(); renderAll(); showToast('Job status advanced');
+  });
+}
+
+document.getElementById("rmDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('rm'));
 
 function renderAdmin() {
   const requests = state.requests || [];
@@ -1342,13 +1818,25 @@ document.getElementById("applicationForm").addEventListener("submit", async (eve
 });
 
 // ─── Notifications ─────────────────────────────
+function pendingActionCount() {
+  return (state.requests || []).filter(r => {
+    if (r.statusIndex >= statuses.length - 1) return false;
+    const a = COORD_ACTIONS[r.statusIndex];
+    return a && (a.urgency === 'critical' || a.urgency === 'high');
+  }).length;
+}
+
 async function renderNotifications() {
   const userId = (await getCurrentSession())?.user?.id;
   if (!userId) return;
   const notifs = await fetchNotifications(userId);
   const unread = notifs.filter(n => !n.read).length;
-  document.getElementById("notifBadge").textContent = unread || "";
-  document.getElementById("notifBadge").style.display = unread ? "flex" : "none";
+  // For coordinator view, show pending action count as badge
+  const isCoord = state.portal === 'coordinator';
+  const pac = isCoord ? pendingActionCount() : 0;
+  const badgeCount = isCoord && pac > 0 ? pac : unread;
+  document.getElementById("notifBadge").textContent = badgeCount || "";
+  document.getElementById("notifBadge").style.display = badgeCount ? "flex" : "none";
   const list = document.getElementById("notifList");
   if (!notifs.length) {
     list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
@@ -1442,8 +1930,11 @@ document.getElementById("advanceStatus").addEventListener("click", async () => {
   }
   // Role-based notifications per status — coordinator is central hub
   switch (request.statusIndex) {
-    case 1: // Requirements Provided → coordinator input
-      await notifyRoles(['coordinator'], `${request.id}: Requirements noted, ready for quotation`, 'info', 'coordinator');
+    case 1: // Under Review → coordinator evaluates
+      await notifyRoles(['coordinator'], `${request.id}: Under review — prepare quotation`, 'info', 'coordinator');
+      if (request.customer_id) {
+        await createNotification({ user_id: request.customer_id, message: `Your request ${request.id} has been accepted and is under review.`, type: 'info' });
+      }
       break;
     case 2: // Quotation Sent → customer reviews
       break;
@@ -1503,15 +1994,27 @@ document.getElementById("resetDemo").addEventListener("click", async () => {
   showToast("Demo data reset");
 });
 
+document.getElementById("requestImageInput").addEventListener("change", () => {
+  const previews = document.getElementById("requestImagePreviews");
+  previews.innerHTML = "";
+  for (const file of Array.from(document.getElementById("requestImageInput").files)) {
+    const reader = new FileReader();
+    reader.onload = e => { const img = document.createElement("img"); img.src = e.target.result; img.style.cssText = "width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--line)"; previews.appendChild(img); };
+    reader.readAsDataURL(file);
+  }
+});
+
 document.getElementById("serviceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("nameInput").value.trim();
+  const phone = document.getElementById("phoneInput").value.trim();
+  const deviceType = document.getElementById("deviceType").value;
   const brand = document.getElementById("brandInput").value;
   const model = document.getElementById("modelInput").value.trim();
   const issue = document.getElementById("issueInput").value;
   const address = document.getElementById("addressInput").value.trim();
-  if (!name || !model || !address) {
-    showToast("Please fill in your name, device model, and pickup address");
+  if (!name || !phone || !model || !address) {
+    showToast("Please fill in your name, phone, device model, and pickup address");
     return;
   }
   const id = `RM-${1024 + state.requests.length}`;
@@ -1519,6 +2022,8 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
   const request = {
     id,
     customer: name,
+    phone,
+    deviceType,
     customer_id: session?.user?.id || null,
     brand,
     model,
@@ -1535,17 +2040,36 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
     otpVerified: false,
     checks: { accepted: false, otp: false, photos: false, handover: false, delivery: false },
     conditionImages: [],
+    requestImages: [],
     requirements: { backCover: "", glassType: "" },
     quoteItems: [],
     taxPercent: 0,
     taxAmount: 0
   };
+  // Upload device photos from the form
+  const imgInput = document.getElementById("requestImageInput");
+  if (imgInput && imgInput.files && imgInput.files.length) {
+    for (const file of Array.from(imgInput.files)) {
+      try {
+        const url = await uploadImage(file);
+        request.requestImages.push(url);
+      } catch {
+        const reader = new FileReader();
+        const url = await new Promise(r => { reader.onload = e => r(e.target.result); reader.readAsDataURL(file); });
+        request.requestImages.push(url);
+      }
+    }
+  }
   state.requests.unshift(request);
   state.activeRequestId = id;
   saveState();
   renderAll();
-  // Notify coordinator about new request — they handle all coordination
-  await notifyRoles(['coordinator'], `New repair request ${id} from ${name} — ${model}: ${issue}, needs quotation`, 'info', 'coordinator');
+  // Notify customer their request was submitted
+  if (session?.user?.id) {
+    await createNotification({ user_id: session.user.id, message: `Your request ${id} has been submitted. A coordinator will review it shortly.`, type: 'info' });
+  }
+  // Notify coordinator about new request
+  await notifyRoles(['coordinator'], `New request ${id} from ${name} — ${model}: ${issue}. Accept to begin review`, 'info', 'coordinator');
   renderNotifications();
   showToast(`${id} created for ${name} and sent to coordinator`);
 });
@@ -1623,30 +2147,52 @@ document.getElementById("payCodBtn").addEventListener("click", () => {
   showToast("Cash on Delivery selected");
 });
 
-document.getElementById("assignDelivery").addEventListener("click", () => {
-  const tech = document.getElementById("deliveryTech").value;
-  const address = document.getElementById("deliveryAddress").value.trim();
-  const editIdx = document.getElementById("deliveryAddress").dataset.editOrder;
-  const order = editIdx ? state.marketOrders[Number(editIdx)] : state.marketOrders.find((o) => o.statusIndex === 0);
-  if (!order) { showToast("Select an order first"); return; }
-  if (!address) { showToast("Enter a delivery address"); return; }
-  order.assignedTech = tech;
-  order.address = address;
-  order.statusIndex = Math.max(order.statusIndex, 1);
-  saveState();
-  renderAll();
-  showToast(`${order.id} assigned to ${tech}`);
-});
+const assignDeliveryBtn = document.getElementById("assignDelivery");
+if (assignDeliveryBtn) {
+  assignDeliveryBtn.addEventListener("click", () => {
+    const tech = document.getElementById("deliveryTech").value;
+    const address = document.getElementById("deliveryAddress").value.trim();
+    const editIdx = document.getElementById("deliveryAddress").dataset.editOrder;
+    const order = editIdx ? state.marketOrders[Number(editIdx)] : state.marketOrders.find((o) => o.statusIndex === 0);
+    if (!order) { showToast("Select an order first"); return; }
+    if (!address) { showToast("Enter a delivery address"); return; }
+    order.assignedTech = tech;
+    order.address = address;
+    order.statusIndex = Math.max(order.statusIndex, 1);
+    saveState();
+    renderAll();
+    showToast(`${order.id} assigned to ${tech}`);
+  });
+}
 
-document.getElementById("saveAssignments").addEventListener("click", () => {
-  const request = activeRequest();
-  request.pickupTech = document.getElementById("pickupTech").value;
-  request.repairPartner = document.getElementById("repairPartner").value;
-  request.statusIndex = Math.max(request.statusIndex, 4);
-  saveState();
-  renderAll();
-  showToast("Pickup scheduled and assignments saved");
-});
+const saveAssignBtn = document.getElementById("saveAssignments");
+if (saveAssignBtn) {
+  saveAssignBtn.addEventListener("click", () => {
+    const request = activeRequest();
+    request.pickupTech = document.getElementById("pickupTech").value;
+    request.repairPartner = document.getElementById("repairPartner").value;
+    request.statusIndex = Math.max(request.statusIndex, 4);
+    saveState();
+    renderAll();
+    showToast("Pickup scheduled and assignments saved");
+  });
+}
+
+const acceptBtn = document.getElementById("acceptRequestBtn");
+if (acceptBtn) {
+  acceptBtn.addEventListener("click", async () => {
+    const request = activeRequest();
+    if (!request || request.statusIndex !== 0) return;
+    request.statusIndex = 1;
+    saveState();
+    renderAll();
+    await notifyRoles(['coordinator'], `${request.id}: Accepted — prepare quotation now`, 'success', 'coordinator');
+    if (request.customer_id) {
+      await createNotification({ user_id: request.customer_id, message: `Your request ${request.id} has been accepted and is under review.`, type: 'info' });
+    }
+    showToast(`${request.id} accepted — now prepare quotation`);
+  });
+}
 
 document.getElementById("verifyOtp").addEventListener("click", () => {
   const request = activeRequest();
