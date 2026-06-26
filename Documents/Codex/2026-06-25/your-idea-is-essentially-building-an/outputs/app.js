@@ -1477,12 +1477,10 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
   state.activeRequestId = id;
   saveState();
   renderAll();
-  // Notify coordinator
-  const session = await getCurrentSession();
-  createNotification({ user_id: session?.user?.id || null, message: `New request ${id}: ${model} - ${issue}`, type: 'info', link: 'coordinator' });
-  const { data: coords } = await supabase.from('profiles').select('id').eq('role', 'coordinator');
-  for (const c of (coords || [])) {
-    await createNotification({ user_id: c.id, message: `New repair request ${id} from ${name}`, type: 'info', link: 'coordinator' });
+  // Notify all employees about the new request
+  const { data: employees } = await supabase.from('profiles').select('id').in('role', ['admin', 'coordinator', 'technician', 'repairmaster']);
+  for (const emp of (employees || [])) {
+    await createNotification({ user_id: emp.id, message: `New repair request ${id} from ${name} — ${model}: ${issue}`, type: 'info', link: 'coordinator' });
   }
   renderNotifications();
   showToast(`${id} created for ${name} and sent to coordinator`);
