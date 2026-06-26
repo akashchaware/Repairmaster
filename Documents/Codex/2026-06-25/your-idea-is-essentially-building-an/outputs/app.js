@@ -1429,45 +1429,61 @@ document.getElementById("advanceStatus").addEventListener("click", async () => {
   renderAll();
   const statusName = statuses[request.statusIndex];
   const msg = `Request ${request.id} is now: ${statusName}`;
-  // Notify customer for any status change
+  // Notify customer at key touchpoints only
   if (request.customer_id) {
-    await createNotification({ user_id: request.customer_id, message: `Your request ${request.id}: ${statusName}`, type: 'info' });
+    const customerMsgs = {
+      2: `Your quotation for ${request.id} is ready — review & approve`,
+      9: `Invoice for ${request.id} is ready — complete your payment`,
+      11: `${request.id} is out for delivery`,
+      14: `${request.id} is complete. Thank you!`
+    };
+    const msg = customerMsgs[request.statusIndex];
+    if (msg) await createNotification({ user_id: request.customer_id, message: msg, type: 'info' });
   }
-  // Role-based notifications per status
+  // Role-based notifications per status — coordinator is central hub
   switch (request.statusIndex) {
-    case 1: // Requirements Provided → notify customer (already done above)
+    case 1: // Requirements Provided → coordinator input
+      await notifyRoles(['coordinator'], `${request.id}: Requirements noted, ready for quotation`, 'info', 'coordinator');
       break;
-    case 2: // Quotation Sent → customer
+    case 2: // Quotation Sent → customer reviews
       break;
-    case 3: // Waiting Approval → customer
+    case 3: // Waiting Approval → customer approved → coordinator assigns team
+      await notifyRoles(['coordinator'], `${request.id}: Customer approved quotation — assign technician & repairmaster`, 'info', 'coordinator');
       break;
     case 4: // Pickup Scheduled → notify assigned technician
       if (request.technician_id) {
         await createNotification({ user_id: request.technician_id, message: `Pickup scheduled for ${request.id}`, type: 'info', link: 'technician' });
       }
+      await notifyRoles(['coordinator'], `${request.id}: Pickup scheduled with technician`, 'info', 'coordinator');
       break;
-    case 5: // Device Picked Up → notify RepairingMaster
-      await notifyRoles(['repairmaster'], `Device picked up for ${request.id} — ready for diagnosis`, 'info', 'repairmaster');
+    case 5: // Device Picked Up → notify RepairingMaster device incoming
+      await notifyRoles(['repairmaster'], `Device ${request.id} picked up — inspect & diagnose`, 'info', 'repairmaster');
+      await notifyRoles(['coordinator'], `${request.id}: Device picked up, sent to repairmaster`, 'info', 'coordinator');
       break;
-    case 6: // Under Diagnosis → customer
+    case 6: // Under Diagnosis → coordinator informed
+      await notifyRoles(['coordinator'], `${request.id}: Under diagnosis by repairmaster`, 'info', 'coordinator');
       break;
-    case 7: // Repair In Progress → customer
+    case 7: // Repair In Progress → coordinator
+      await notifyRoles(['coordinator'], `${request.id}: Repair in progress`, 'info', 'coordinator');
       break;
-    case 8: // Quality Check → customer
+    case 8: // Quality Check → coordinator
+      await notifyRoles(['coordinator'], `${request.id}: Quality check done`, 'info', 'coordinator');
       break;
     case 9: // Invoice Sent → customer
       break;
-    case 10: // Payment Initiated → notify admin + coordinator
-      await notifyRoles(['admin', 'coordinator'], `Payment initiated for ${request.id}`, 'info', 'coordinator');
+    case 10: // Payment Initiated → coordinator verifies
+      await notifyRoles(['coordinator'], `Payment initiated for ${request.id} — verify`, 'info', 'coordinator');
       break;
     case 11: // Ready for Delivery → notify assigned technician
       if (request.technician_id) {
         await createNotification({ user_id: request.technician_id, message: `${request.id} ready for delivery`, type: 'info', link: 'technician' });
       }
+      await notifyRoles(['coordinator'], `${request.id}: Ready for delivery`, 'info', 'coordinator');
       break;
-    case 12: // Delivered → customer
+    case 12: // Delivered → coordinator + customer
+      await notifyRoles(['coordinator'], `${request.id}: Delivered to customer`, 'info', 'coordinator');
       break;
-    case 13: // Payment Received → notify coordinator
+    case 13: // Payment Received → coordinator
       await notifyRoles(['coordinator'], `Payment received for ${request.id}`, 'success', 'coordinator');
       break;
     case 14: // Closed → customer
@@ -1528,22 +1544,21 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
   state.activeRequestId = id;
   saveState();
   renderAll();
-  // Notify all employees about the new request
-  const { data: employees } = await supabase.from('profiles').select('id').in('role', ['admin', 'coordinator', 'technician', 'repairmaster']);
-  for (const emp of (employees || [])) {
-    await createNotification({ user_id: emp.id, message: `New repair request ${id} from ${name} — ${model}: ${issue}`, type: 'info', link: 'coordinator' });
-  }
+  // Notify coordinator about new request — they handle all coordination
+  await notifyRoles(['coordinator'], `New repair request ${id} from ${name} — ${model}: ${issue}, needs quotation`, 'info', 'coordinator');
   renderNotifications();
   showToast(`${id} created for ${name} and sent to coordinator`);
 });
 
-document.getElementById("approveQuote").addEventListener("click", () => {
+document.getElementById("approveQuote").addEventListener("click", async () => {
   const request = activeRequest();
   request.quoteApproved = true;
   request.statusIndex = Math.max(request.statusIndex, 3);
   saveState();
   renderAll();
-  showToast("Quotation approved");
+  await notifyRoles(['coordinator'], `${request.id}: Customer approved quotation — assign technician & repairmaster`, 'info', 'coordinator');
+  renderNotifications();
+  showToast("Quotation approved — coordinator notified to assign team");
 });
 
 document.getElementById("uploadConditionBtn").addEventListener("click", async () => {
