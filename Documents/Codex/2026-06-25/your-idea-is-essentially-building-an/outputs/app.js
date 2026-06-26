@@ -751,11 +751,14 @@ function renderAdmin() {
   document.querySelectorAll(".appr-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const i = Number(btn.dataset.appr);
-      state.applications[i].status = "Approved";
-      const dbId = state.applications[i].id;
+      const app = state.applications[i];
+      app.status = "Approved";
+      const dbId = app.id;
       if (dbId) await updateApplication(dbId, { status: "Approved" }).catch(() => {});
+      if (app.user_id) await createNotification({ user_id: app.user_id, message: `Your ${app.role} application has been approved. You can now sign in.`, type: 'success' });
       saveState();
       renderAll();
+      renderNotifications();
       showToast("Application approved — employee can now sign in");
     });
   });
@@ -773,11 +776,14 @@ function renderAdmin() {
   document.querySelectorAll(".rej-btn[data-rej-app]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const i = Number(btn.dataset.rejApp);
-      state.applications[i].status = "Rejected";
-      const dbId = state.applications[i].id;
+      const app = state.applications[i];
+      app.status = "Rejected";
+      const dbId = app.id;
       if (dbId) await updateApplication(dbId, { status: "Rejected" }).catch(() => {});
+      if (app.user_id) await createNotification({ user_id: app.user_id, message: `Your ${app.role} application has been rejected.`, type: 'error' });
       saveState();
       renderAll();
+      renderNotifications();
       showToast("Application rejected");
     });
   });
@@ -942,6 +948,7 @@ function renderAll() {
   renderMarketplace();
   renderLocalDeals();
   switchView(state.activeView);
+  renderNotifications();
 }
 
 function detectCity(text) {
@@ -1155,6 +1162,11 @@ document.getElementById("applicationForm").addEventListener("submit", async (eve
       status: "Pending"
     });
     state.applications.unshift({ ...app, id: undefined });
+    // Notify admin about new application
+    const { data: admins } = await supabase.from('profiles').select('id').eq('role', 'admin');
+    for (const admin of (admins || [])) {
+      await createNotification({ user_id: admin.id, message: `New ${roleLabel} application from ${name}`, type: 'info', link: 'admin' });
+    }
   } catch (e) {
     state.applications.unshift({ name, email, phone, role: roleLabel, location, details, status: "Pending" });
   }
@@ -1162,6 +1174,57 @@ document.getElementById("applicationForm").addEventListener("submit", async (eve
   renderHotDeals();
   document.getElementById("applicationForm").reset();
   showToast(`${roleLabel} application submitted for ${location}`);
+  renderNotifications();
+});
+
+// ─── Notifications ─────────────────────────────
+async function renderNotifications() {
+  const userId = (await getCurrentSession())?.user?.id;
+  if (!userId) return;
+  const notifs = await fetchNotifications(userId);
+  const unread = notifs.filter(n => !n.read).length;
+  document.getElementById("notifBadge").textContent = unread || "";
+  document.getElementById("notifBadge").style.display = unread ? "flex" : "none";
+  const list = document.getElementById("notifList");
+  if (!notifs.length) {
+    list.innerHTML = '<div class="notif-empty">No notifications yet</div>';
+    return;
+  }
+  list.innerHTML = notifs.map(n => `
+    <div class="notif-item ${n.read ? "" : "unread"}" data-nid="${n.id}">
+      <span class="notif-msg">${n.message}</span>
+      <span class="notif-time">${new Date(n.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+    </div>
+  `).join("");
+  list.querySelectorAll(".notif-item").forEach(el => {
+    el.addEventListener("click", async () => {
+      const nid = Number(el.dataset.nid);
+      await markNotificationRead(nid);
+      renderNotifications();
+      const notif = notifs.find(n => n.id === nid);
+      if (notif && notif.link) switchView(notif.link);
+    });
+  });
+}
+
+document.getElementById("notifBell").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("notifPanel").classList.toggle("open");
+  renderNotifications();
+});
+
+document.getElementById("markAllReadBtn").addEventListener("click", async () => {
+  const userId = (await getCurrentSession())?.user?.id;
+  if (!userId) return;
+  await markAllNotificationsRead(userId);
+  renderNotifications();
+});
+
+document.addEventListener("click", (e) => {
+  const panel = document.getElementById("notifPanel");
+  if (panel.classList.contains("open") && !panel.contains(e.target) && e.target.id !== "notifBell") {
+    panel.classList.remove("open");
+  }
 });
 
 // Init dynamic fields on page load
@@ -1170,7 +1233,7 @@ renderDynamicFields("technician");
 document.getElementById("logoutButton").addEventListener("click", logoutPortal);
 document.getElementById("sidebarLogoutBtn").addEventListener("click", logoutPortal);
 
-document.getElementById("advanceStatus").addEventListener("click", () => {
+document.getElementById("advanceStatus").addEventListener("click", async () => {
   const request = activeRequest();
   if (request.statusIndex >= statuses.length - 1) {
     showToast("Repair lifecycle is already complete");
@@ -1184,6 +1247,12 @@ document.getElementById("advanceStatus").addEventListener("click", () => {
   if (request.statusIndex === 9) request.invoiceSent = true;
   saveState();
   renderAll();
+  // Notify customer about status change
+  const session = await getCurrentSession();
+  if (session?.user?.id) {
+    await createNotification({ user_id: session.user.id, message: `Your request ${request.id} is now: ${statuses[request.statusIndex]}`, type: 'info' });
+  }
+  renderNotifications();
   showToast(`${request.id} moved to ${statuses[request.statusIndex]}`);
 });
 
@@ -1197,7 +1266,7 @@ document.getElementById("resetDemo").addEventListener("click", async () => {
   showToast("Demo data reset");
 });
 
-document.getElementById("serviceForm").addEventListener("submit", (event) => {
+document.getElementById("serviceForm").addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("nameInput").value.trim();
   const brand = document.getElementById("brandInput").value;
@@ -1236,6 +1305,14 @@ document.getElementById("serviceForm").addEventListener("submit", (event) => {
   state.activeRequestId = id;
   saveState();
   renderAll();
+  // Notify coordinator
+  const session = await getCurrentSession();
+  createNotification({ user_id: session?.user?.id || null, message: `New request ${id}: ${model} - ${issue}`, type: 'info', link: 'coordinator' });
+  const { data: coords } = await supabase.from('profiles').select('id').eq('role', 'coordinator');
+  for (const c of (coords || [])) {
+    await createNotification({ user_id: c.id, message: `New repair request ${id} from ${name}`, type: 'info', link: 'coordinator' });
+  }
+  renderNotifications();
   showToast(`${id} created for ${name} and sent to coordinator`);
 });
 

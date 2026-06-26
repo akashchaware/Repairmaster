@@ -172,9 +172,21 @@
       </div>
 
       <div class="sidebar-footer">
+        <div class="notif-bell" id="notifBell">
+          <span class="bell-icon">🔔</span>
+          <span class="notif-badge" id="notifBadge">0</span>
+        </div>
         <button class="sidebar-logout" id="sidebarLogoutBtn">Logout</button>
       </div>
     </aside>
+
+    <div class="notif-panel" id="notifPanel">
+      <div class="notif-panel-header">
+        <span>Notifications</span>
+        <button id="markAllReadBtn">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notifList"></div>
+    </div>
 
     <main class="content">
       <header class="topbar">

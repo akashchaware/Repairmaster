@@ -199,6 +199,31 @@ CREATE POLICY "Admin can update config"
   ON service_charge_config FOR UPDATE
   USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
 
+-- 8. Notifications (in-app)
+CREATE TABLE notifications (
+  id BIGSERIAL PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  message TEXT NOT NULL,
+  type TEXT DEFAULT 'info' CHECK (type IN ('info','success','warning','error')),
+  link TEXT DEFAULT '',
+  read BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can see own notifications"
+  ON notifications FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own notifications"
+  ON notifications FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "System can insert notifications"
+  ON notifications FOR INSERT
+  WITH CHECK (true);
+
 -- Insert default service charge
 INSERT INTO service_charge_config (percentage) VALUES (10) ON CONFLICT DO NOTHING;
 

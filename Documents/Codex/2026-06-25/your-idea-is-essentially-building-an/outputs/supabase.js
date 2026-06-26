@@ -159,6 +159,30 @@ async function checkEmployeeAccess(userId, role) {
   return !!data;
 }
 
+// ─── Notifications ──────────────────────────────────
+async function fetchNotifications(userId) {
+  const { data } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50);
+  return data || [];
+}
+
+async function createNotification(notification) {
+  const { error } = await supabase.from('notifications').insert(notification);
+  if (error) console.error('Notification insert failed:', error);
+}
+
+async function markNotificationRead(id) {
+  await supabase.from('notifications').update({ read: true }).eq('id', id);
+}
+
+async function markAllNotificationsRead(userId) {
+  await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false);
+}
+
+async function getUnreadCount(userId) {
+  const { count } = await supabase.from('notifications').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('read', false);
+  return count || 0;
+}
+
 // ─── Load all data into state ───────────────────────
 async function loadAllDataIntoState(targetState) {
   const [requests, marketplace, applications, orders] = await Promise.all([
