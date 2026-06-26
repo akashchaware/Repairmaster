@@ -9,9 +9,10 @@ const statuses = [
   "Repair In Progress",
   "Quality Check",
   "Invoice Sent",
-  "Invoice Paid",
+  "Payment Initiated",
   "Ready for Delivery",
   "Delivered",
+  "Payment Received",
   "Closed"
 ];
 
@@ -459,24 +460,37 @@ function renderCustomer() {
     cv.innerHTML = request.conditionImages.map((img) => `<img src="${img}" alt="Device condition" loading="lazy">`).join("");
   }
 
-  // Invoice section - show at status 7 (Invoice Sent)
+  // Invoice & payment section - show from Invoice Sent through Payment Received
   const invSection = document.getElementById("invoiceSection");
   if (invSection) {
-    invSection.style.display = request.statusIndex === 9 ? "block" : "none";
+    const showInvoice = request.statusIndex >= 9 && request.statusIndex <= 13;
+    invSection.style.display = showInvoice ? "block" : "none";
     document.getElementById("invoiceAmount").textContent = formatCurrency(request.quoteAmount);
-    document.getElementById("payOnlineBtn").style.display = "";
-    document.getElementById("payCodBtn").style.display = "";
+    const payOnlineBtn = document.getElementById("payOnlineBtn");
+    const payCodBtn = document.getElementById("payCodBtn");
     const confirmEl = document.getElementById("paymentConfirmation");
     if (request.paymentMethod === "Online") {
-      confirmEl.textContent = "Payment received. Repair will begin shortly.";
+      if (request.statusIndex >= 13) {
+        confirmEl.textContent = "Payment received. Thank you!";
+      } else {
+        confirmEl.textContent = "Payment received. Repair will begin shortly.";
+      }
       confirmEl.style.display = "block";
-      document.getElementById("payOnlineBtn").style.display = "none";
-      document.getElementById("payCodBtn").style.display = "none";
+      if (payOnlineBtn) payOnlineBtn.style.display = "none";
+      if (payCodBtn) payCodBtn.style.display = "none";
     } else if (request.paymentMethod === "Cash on Delivery") {
-      confirmEl.textContent = "Cash on Delivery selected. You will pay when the device is delivered.";
+      if (request.statusIndex >= 13) {
+        confirmEl.textContent = "COD payment collected. Thank you!";
+      } else {
+        confirmEl.textContent = "Cash on Delivery selected. Pay when the device is delivered.";
+      }
       confirmEl.style.display = "block";
-      document.getElementById("payOnlineBtn").style.display = "none";
-      document.getElementById("payCodBtn").style.display = "none";
+      if (payOnlineBtn) payOnlineBtn.style.display = "none";
+      if (payCodBtn) payCodBtn.style.display = "none";
+    } else if (request.statusIndex === 9) {
+      confirmEl.style.display = "none";
+      if (payOnlineBtn) payOnlineBtn.style.display = "";
+      if (payCodBtn) payCodBtn.style.display = "";
     } else {
       confirmEl.style.display = "none";
     }
@@ -603,7 +617,8 @@ function renderTechnician() {
     ["otp", "Customer OTP verified"],
     ["photos", "Device photos captured"],
     ["handover", "Device handed to RepairingMaster"],
-    ["delivery", "Delivery confirmation"]
+    ["delivery", "Delivery confirmation"],
+    ["payment_collected", "Payment collected from customer"]
   ];
 
   document.getElementById("techChecklist").innerHTML = checks.map(([key, label]) => `
@@ -617,6 +632,9 @@ function renderTechnician() {
     button.addEventListener("click", () => {
       request.checks[button.dataset.check] = true;
       if (button.dataset.check === "otp") request.otpVerified = true;
+      if (button.dataset.check === "payment_collected" && request.paymentMethod === "Cash on Delivery") {
+        request.paymentStatus = "Paid";
+      }
       saveState();
       renderAll();
       showToast("Technician checklist updated");
@@ -730,7 +748,7 @@ function renderAdmin() {
   // Real metrics
   const totalCommission = requests.reduce((s, r) => s + commissionFor(r.quoteAmount), 0) + marketplace.filter((m) => m.sold).reduce((s, m) => s + commissionFor(displayPrice(m.basePrice)), 0);
   document.getElementById("platformCommission").textContent = formatCurrency(totalCommission);
-  document.getElementById("escalations").textContent = requests.filter((r) => r.statusIndex > 0 && r.statusIndex < 6).length || "0";
+  document.getElementById("escalations").textContent = requests.filter((r) => r.statusIndex > 0 && r.statusIndex < 6).length;
   document.getElementById("totalRequests").textContent = requests.length;
   document.getElementById("pendingApps").textContent = applications.filter(a => a.status === "Pending").length;
 
@@ -739,8 +757,8 @@ function renderAdmin() {
   const stageCounts = [0, 0, 0, 0];
   requests.forEach(r => {
     if (r.statusIndex === 0) stageCounts[0]++;
-    else if (r.statusIndex < 8) stageCounts[1]++;
-    else if (r.statusIndex < 12) stageCounts[2]++;
+    else if (r.statusIndex <= 8) stageCounts[1]++;
+    else if (r.statusIndex <= 12) stageCounts[2]++;
     else stageCounts[3]++;
   });
   const maxCount = Math.max(...stageCounts, 1);
@@ -1196,19 +1214,29 @@ document.getElementById("unifiedLoginForm").addEventListener("submit", async (ev
 const roleFields = {
   technician: [
     { id: "appExp", label: "Years of experience", type: "number", placeholder: "e.g. 3" },
-    { id: "appSpec", label: "Specialization", type: "select", options: ["Mobile Phones", "Laptops", "TV & Monitors", "All Devices"] }
+    { id: "appSpec", label: "Specialization", type: "select", options: ["Mobile Phones", "Laptops", "TV & Monitors", "All Devices"] },
+    { id: "appCert", label: "Certifications", type: "text", placeholder: "e.g. Mobile Repair Certified, Apple ACMT" },
+    { id: "appWorkType", label: "Work type", type: "select", options: ["On-site only", "Shop-based", "Both"] }
   ],
   repairmaster: [
     { id: "appStore", label: "Store / workshop name", type: "text", placeholder: "e.g. FixHub Andheri" },
     { id: "appOwner", label: "Owner name", type: "text", placeholder: "Full name" },
     { id: "appYearsBiz", label: "Years in business", type: "number", placeholder: "e.g. 5" },
-    { id: "appTechs", label: "Number of technicians", type: "number", placeholder: "e.g. 3" }
+    { id: "appTechs", label: "Number of technicians", type: "number", placeholder: "e.g. 3" },
+    { id: "appGst", label: "GST number (optional)", type: "text", placeholder: "e.g. 27AABCU9603R1ZX" },
+    { id: "appPincodes", label: "Service pincodes", type: "text", placeholder: "e.g. 400001, 400002, 400003" },
+    { id: "appHours", label: "Business hours", type: "text", placeholder: "e.g. Mon-Sat 10AM-8PM" }
   ],
   coordinator: [
-    { id: "appCoordExp", label: "Previous experience", type: "textarea", placeholder: "Describe your relevant experience in logistics / coordination" }
+    { id: "appCoordExp", label: "Previous experience", type: "textarea", placeholder: "Describe your relevant experience in logistics / coordination" },
+    { id: "appLanguages", label: "Languages spoken", type: "text", placeholder: "e.g. Hindi, English, Marathi" },
+    { id: "appArea", label: "Area of operation", type: "text", placeholder: "e.g. Mumbai Western Suburbs" },
+    { id: "appTransport", label: "Transport options", type: "select", options: ["Two-wheeler", "Car/Van", "Public transport", "All of the above"] }
   ],
   admin: [
-    { id: "appAdminReason", label: "Qualifications & reason", type: "textarea", placeholder: "Why do you want to be an admin? Describe your qualifications." }
+    { id: "appAdminReason", label: "Qualifications & reason", type: "textarea", placeholder: "Why do you want to be an admin? Describe your qualifications." },
+    { id: "appMgmtExp", label: "Previous management experience", type: "textarea", placeholder: "Describe any team management or operations experience" },
+    { id: "appRef", label: "Reference (existing employee)", type: "text", placeholder: "Name of current RepairingMaster or coordinator" }
   ]
 };
 
@@ -1348,8 +1376,16 @@ document.getElementById("advanceStatus").addEventListener("click", async () => {
     showToast("Customer must select a payment method first");
     return;
   }
+  if (request.statusIndex === 12 && request.paymentMethod === "Cash on Delivery" && request.paymentStatus !== "Paid") {
+    showToast("COD payment must be collected before confirming received");
+    return;
+  }
   request.statusIndex = Math.min(request.statusIndex + 1, statuses.length - 1);
   if (request.statusIndex === 9) request.invoiceSent = true;
+  if (request.statusIndex === 13 && request.paymentMethod === "Online") {
+    request.paymentStatus = "Paid";
+    createNotification({ user_id: session?.user?.id || null, message: `Payment received for ${request.id}`, type: 'success' });
+  }
   saveState();
   renderAll();
   // Notify customer about status change
