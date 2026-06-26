@@ -1156,7 +1156,7 @@ document.getElementById("unifiedLoginForm").addEventListener("submit", async (ev
     showToast("Enter a valid email address (e.g. yourname@gmail.com)");
     return;
   }
-  if (!name) {
+  if (!isEmployeeTab && !name) {
     showToast("Please enter your name");
     return;
   }
@@ -1728,14 +1728,6 @@ document.getElementById("marketUploadForm").addEventListener("submit", async (ev
   renderAll();
   showToast(`${item.model} listed at ${formatCurrency(finalPrice)}`);
   document.getElementById("marketUploadForm").reset();
-});
-  } else {
-    item.images = [defaultDeviceIcon];
-    state.marketplace.unshift(item);
-    saveState();
-    renderAll();
-    showToast(`${item.model} listed at ${formatCurrency(finalPrice)}`);
-  }
 });
 
 document.getElementById("backCoverForm").addEventListener("submit", (event) => {
