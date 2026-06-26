@@ -595,8 +595,7 @@ function renderTechnician() {
   document.getElementById("techJobMeta").textContent = request ? `${request.customer} | ${request.address}` : "";
   const otpInput = document.getElementById("otpInput");
   if (otpInput && request) otpInput.value = request.pickupOtp || "4821";
-  const request = activeRequest();
-  const isDelivery = request.statusIndex >= 11;
+  const isDelivery = request ? request.statusIndex >= 11 : false;
   document.getElementById("techJobTitle").textContent = `${isDelivery ? "Delivery" : "Pickup"} ${request.id}`;
   document.getElementById("techJobMeta").textContent = `${request.customer} | ${request.address} | ${request.model}`;
   const techPreviews = document.getElementById("techConditionPreviews");

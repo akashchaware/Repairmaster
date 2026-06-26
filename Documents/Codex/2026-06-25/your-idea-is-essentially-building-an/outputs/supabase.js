@@ -1,8 +1,7 @@
 // Supabase service layer — replaces localStorage with cloud database
 const SUPABASE_URL = 'https://tmvjeqpqkozaozqzdqwp.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable__TNM1ah3ZLIwqyU8Iu3S8A_Lik1M-ql';
-const { createClient } = window.supabase;
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+var supabase = supabase || (window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null);
 
 // ─── Auth ───────────────────────────────────────────
 async function signUpWithEmail(email, password, profile) {
