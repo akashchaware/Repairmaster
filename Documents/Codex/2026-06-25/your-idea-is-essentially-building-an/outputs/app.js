@@ -782,7 +782,17 @@ function renderAdmin() {
     </div>
   `).join("");
 
-  document.getElementById("applicationList").innerHTML = state.applications.map((app, i) => {
+  // Application filter - use event delegation on parent
+  document.getElementById("appFilterBar").onclick = (e) => {
+    const btn = e.target.closest("[data-appfilter]");
+    if (!btn) return;
+    document.querySelectorAll("[data-appfilter]").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderAdmin();
+  };
+  const activeFilter = document.querySelector("#appFilterBar .active")?.dataset?.appfilter || "All";
+  const filteredApps = activeFilter === "All" ? state.applications : state.applications.filter(a => a.status === activeFilter);
+  document.getElementById("applicationList").innerHTML = filteredApps.map((app, i) => {
     const detailsHtml = app.details ? Object.entries(app.details).filter(([_, v]) => v).map(([k, v]) => `<span class="app-detail">${k}: ${v}</span>`).join("") : "";
     return `
     <div class="app-card">
@@ -791,7 +801,7 @@ function renderAdmin() {
           <strong>${app.name}</strong>
           <span class="app-role-tag">${app.role}</span>
         </div>
-        <span class="status-pill ${app.status === "Approved" ? "pill-approved" : "pill-pending"}">${app.status}</span>
+        <span class="status-pill ${app.status === "Approved" ? "pill-approved" : app.status === "Rejected" ? "pill-rejected" : "pill-pending"}">${app.status}</span>
       </div>
       <div class="app-card-body">
         <span class="app-detail">Email: ${app.email || "—"}</span>
@@ -824,11 +834,14 @@ function renderAdmin() {
   document.querySelectorAll(".rej-btn[data-rej]").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const i = Number(btn.dataset.rej);
-      state.applications[i].status = "Pending";
-      const dbId = state.applications[i].id;
+      const app = state.applications[i];
+      app.status = "Pending";
+      const dbId = app.id;
       if (dbId) await updateApplication(dbId, { status: "Pending" }).catch(() => {});
+      if (app.user_id) await createNotification({ user_id: app.user_id, message: `Your ${app.role} application access has been revoked. Contact admin.`, type: 'warning' });
       saveState();
       renderAll();
+      renderNotifications();
       showToast("Application access revoked");
     });
   });
