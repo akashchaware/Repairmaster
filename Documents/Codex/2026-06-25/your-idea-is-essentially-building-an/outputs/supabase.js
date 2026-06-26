@@ -183,16 +183,40 @@ async function getUnreadCount(userId) {
   return count || 0;
 }
 
+// ─── Job Postings ───────────────────────────────────
+async function fetchJobPostings() {
+  const { data } = await supabase.from('job_postings').select('*').order('created_at', { ascending: false });
+  return data || [];
+}
+
+async function createJobPosting(job) {
+  const { data, error } = await supabase.from('job_postings').insert(job).select();
+  if (error) throw error;
+  return data[0];
+}
+
+async function updateJobPosting(id, updates) {
+  const { data, error } = await supabase.from('job_postings').update(updates).eq('id', id).select();
+  if (error) throw error;
+  return data[0];
+}
+
+async function deleteJobPosting(id) {
+  await supabase.from('job_postings').delete().eq('id', id);
+}
+
 // ─── Load all data into state ───────────────────────
 async function loadAllDataIntoState(targetState) {
-  const [requests, marketplace, applications, orders] = await Promise.all([
+  const [requests, marketplace, applications, orders, jobPostings] = await Promise.all([
     fetchRepairRequests(),
     fetchMarketplaceListings(),
     fetchApplications(),
-    fetchMarketOrders()
+    fetchMarketOrders(),
+    fetchJobPostings()
   ]);
   targetState.requests = requests;
   targetState.marketplace = marketplace;
   targetState.applications = applications;
   targetState.marketOrders = orders;
+  targetState.jobPostings = jobPostings || [];
 }

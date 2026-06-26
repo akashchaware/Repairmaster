@@ -224,6 +224,33 @@ CREATE POLICY "System can insert notifications"
   ON notifications FOR INSERT
   WITH CHECK (true);
 
+-- 9. Job postings (recruitment)
+CREATE TABLE job_postings (
+  id BIGSERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  role TEXT NOT NULL,
+  location TEXT DEFAULT '',
+  description TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open','Closed')),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE job_postings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read job postings"
+  ON job_postings FOR SELECT USING (true);
+
+CREATE POLICY "Admin can manage job postings"
+  ON job_postings FOR ALL
+  USING (auth.uid() IN (SELECT id FROM profiles WHERE role = 'admin'));
+
+-- Insert default job postings
+INSERT INTO job_postings (title, role, location, description) VALUES
+  ('Experienced Mobile Technician', 'Technician', 'Mumbai West', 'Repair mobile phones, diagnose issues, replace parts. 2+ years experience required.'),
+  ('Store Partner - RepairingMaster', 'RepairingMaster', 'Bengaluru Central', 'Run your own repair shop under RepairingMaster brand. Own store required.'),
+  ('Logistics Coordinator', 'Coordinator', 'Delhi NCR', 'Coordinate pickups, deliveries, and technician assignments. Good communication skills.'),
+  ('Operations Admin', 'Admin', 'All India', 'Manage platform operations, approve applications, oversee performance.');
+
 -- Insert default service charge
 INSERT INTO service_charge_config (percentage) VALUES (10) ON CONFLICT DO NOTHING;
 

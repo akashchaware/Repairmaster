@@ -850,6 +850,70 @@ function renderAdmin() {
       </div>
     `;
   }).join("");
+
+  // Job postings
+  renderJobPostings();
+  const jobForm = document.getElementById("jobPostingForm");
+  if (jobForm) {
+    jobForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const title = document.getElementById("jobTitle").value.trim();
+      const role = document.getElementById("jobRole").value;
+      const location = document.getElementById("jobLocation").value.trim();
+      const description = document.getElementById("jobDescription").value.trim();
+      if (!title) return;
+      try {
+        const job = { title, role, location, description, status: "Open" };
+        const result = await supabase.from("job_postings").insert(job).select();
+        if (result.error) throw result.error;
+        document.getElementById("jobPostingForm").reset();
+        state.jobPostings = await fetchJobPostings();
+        renderJobPostings();
+      } catch (err) {
+        showToast("Failed to create job posting", "error");
+      }
+    };
+  }
+}
+
+function renderJobPostings() {
+  const list = document.getElementById("jobPostingList");
+  if (!list) return;
+  const jobs = state.jobPostings || [];
+  if (!jobs.length) {
+    list.innerHTML = `<div class="empty-state">No job postings yet.</div>`;
+    return;
+  }
+  list.innerHTML = jobs.map((j) => `
+    <div class="vendor-row">
+      <div>
+        <strong>${j.title}</strong><br>
+        <small>${j.role} · ${j.location || "Anywhere"}</small>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="status-pill" style="background:${j.status === 'Open' ? '#d4ede4' : '#f0f0f0'}">${j.status}</span>
+        <button class="secondary-action" data-id="${j.id}" style="padding:4px 8px;font-size:11px">${j.status === 'Open' ? 'Close' : 'Reopen'}</button>
+        <button class="secondary-action" data-id="${j.id}" data-delete style="padding:4px 8px;font-size:11px;color:var(--red)">Delete</button>
+      </div>
+    </div>
+  `).join("");
+  // Event delegation for toggle and delete
+  list.querySelectorAll("button[data-id]").forEach((btn) => {
+    btn.onclick = async () => {
+      const id = parseInt(btn.dataset.id);
+      if (btn.hasAttribute("data-delete")) {
+        await supabase.from("job_postings").delete().eq("id", id);
+        state.jobPostings = await fetchJobPostings();
+        renderJobPostings();
+      } else {
+        const job = jobs.find((j) => j.id === id);
+        const newStatus = job.status === "Open" ? "Closed" : "Open";
+        await supabase.from("job_postings").update({ status: newStatus }).eq("id", id);
+        state.jobPostings = await fetchJobPostings();
+        renderJobPostings();
+      }
+    };
+  });
 }
 
 function renderMarketplace() {

@@ -620,6 +620,33 @@
           <h2>Technician performance</h2>
         </div>
         <div id="techPerformanceList"></div>
+
+        <div class="recruitment-section" style="margin-top:32px;border-top:1px solid var(--line);padding-top:24px">
+          <div class="section-title">
+            <p class="eyebrow">Recruitment</p>
+            <h2>Job postings</h2>
+          </div>
+          <div class="recruitment-layout" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+            <div>
+              <div id="jobPostingList"></div>
+            </div>
+            <div class="job-form-card" style="background:#fbfcfd;border:1px solid var(--line);border-radius:8px;padding:16px">
+              <h3 style="margin:0 0 12px;font-size:14px">Create job posting</h3>
+              <form id="jobPostingForm" style="display:grid;gap:8px">
+                <label style="font-size:12px">Job title <input id="jobTitle" placeholder="e.g. Senior Technician" required></label>
+                <label style="font-size:12px">Role <select id="jobRole">
+                  <option>Technician</option>
+                  <option>RepairingMaster</option>
+                  <option>Coordinator</option>
+                  <option>Admin</option>
+                </select></label>
+                <label style="font-size:12px">Location <input id="jobLocation" placeholder="e.g. Mumbai West"></label>
+                <label style="font-size:12px">Description <textarea id="jobDescription" placeholder="Job requirements, experience, etc."></textarea></label>
+                <button class="primary-action full" type="submit">Post Opening</button>
+              </form>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="marketplace">
