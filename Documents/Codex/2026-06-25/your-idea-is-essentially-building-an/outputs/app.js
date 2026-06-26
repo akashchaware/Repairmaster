@@ -332,10 +332,6 @@ function loginPortal(portal) {
 }
 
 function updateUserBadge() {
-  const user = state.activeUser || { name: "User", email: "", role: state.activePortal };
-  document.getElementById("userName").textContent = user.name;
-  document.getElementById("userRoleBadge").textContent = user.role || state.activePortal || "";
-  document.getElementById("userAvatar").textContent = (user.name || "U").charAt(0).toUpperCase();
 }
 
 function logoutPortal() {
@@ -360,6 +356,10 @@ function renderCustomer() {
   document.getElementById("activeRequestMeta").textContent = `${request.model} - ${request.issue}`;
   document.getElementById("deviceTitle").textContent = request.model;
   document.getElementById("deviceIssue").textContent = `${request.issue}, pickup from ${request.address}`;
+  const nameInput = document.getElementById("nameInput");
+  if (nameInput && state.activeUser && state.activeUser.name && !nameInput.value) {
+    nameInput.value = state.activeUser.name;
+  }
 
   // Requirements section - show only at status 0 (before quote)
   const reqSection = document.getElementById("requirementsSection");
@@ -464,6 +464,15 @@ function renderCustomer() {
       confirmEl.style.display = "none";
     }
   }
+
+  // Show customer panel only if there's an active request (statusIndex > 0 or requests exist)
+  const panel = document.getElementById("customerPanel");
+  if (panel) {
+    const hasActive = state.requests.some(r => r.customer === (state.activeUser ? state.activeUser.name : "") && r.statusIndex > 0);
+    panel.style.display = hasActive ? "block" : "none";
+  }
+
+  renderLocalDeals();
 
   document.getElementById("customerTimeline").innerHTML = statuses.map((status, index) => {
     const stateClass = index < request.statusIndex ? "done" : index === request.statusIndex ? "current" : "";
@@ -883,7 +892,63 @@ function renderAll() {
   renderRepairMaster();
   renderAdmin();
   renderMarketplace();
+  renderLocalDeals();
   switchView(state.activeView);
+}
+
+function detectCity(text) {
+  if (!text) return "";
+  const lower = text.toLowerCase();
+  const cities = [
+    ["mumbai", "Mumbai"], ["bengaluru", "Bengaluru"], ["bangalore", "Bengaluru"],
+    ["delhi", "Delhi"], ["noida", "Delhi"], ["gurgaon", "Delhi"],
+    ["pune", "Pune"], ["hyderabad", "Hyderabad"], ["chennai", "Chennai"],
+    ["kolkata", "Kolkata"], ["ahmedabad", "Ahmedabad"], ["jaipur", "Jaipur"],
+    ["lucknow", "Lucknow"], ["surat", "Surat"]
+  ];
+  for (const [keyword, city] of cities) {
+    if (lower.includes(keyword)) return city;
+  }
+  return "";
+}
+
+function matchesCity(itemCity, customerCity) {
+  if (!customerCity) return true;
+  const map = {
+    "Mumbai": ["Mumbai West", "Mumbai Region", "FixHub Andheri"],
+    "Bengaluru": ["Bengaluru Central", "TechCare Koramangala"],
+    "Delhi": ["Delhi NCR", "Prime Mobile Lab Noida"],
+    "Pune": ["Pune"],
+    "Hyderabad": ["Hyderabad"],
+    "Chennai": ["Chennai"],
+    "Kolkata": ["Kolkata"]
+  };
+  const keywords = map[customerCity] || [customerCity];
+  return keywords.some(k => itemCity.toLowerCase().includes(k.toLowerCase()) || itemCity.toLowerCase().includes(customerCity.toLowerCase()));
+}
+
+function renderLocalDeals() {
+  const grid = document.getElementById("localDealsGrid");
+  const label = document.getElementById("dealsLocationLabel");
+  if (!grid) return;
+  const customerCity = (state.activeUser && state.activeUser.city) || detectCity(state.requests.find(r => r.customer === (state.activeUser ? state.activeUser.name : ""))?.address || "");
+  label.textContent = customerCity ? `Hot deals in ${customerCity}` : "Hot deals near you";
+  const deals = state.marketplace.filter(item => !item.sold && matchesCity(item.owner, customerCity)).slice(0, 4);
+  if (!deals.length) {
+    grid.innerHTML = `<p style="color:var(--muted);grid-column:1/-1;text-align:center">No deals in your city yet. Check back soon.</p>`;
+    return;
+  }
+  grid.innerHTML = deals.map(item => {
+    const imgs = item.images && item.images.length ? item.images : [defaultDeviceIcon];
+    return `
+    <div class="local-deal-card">
+      <span class="local-badge">Near you</span>
+      <img class="local-deal-img" src="${imgs[0]}" alt="${item.model}" loading="lazy">
+      <h4>${item.model}</h4>
+      <p>${item.owner} &middot; ${item.warranty}</p>
+      <strong>${formatCurrency(displayPrice(item.basePrice))}</strong>
+    </div>
+  `}).join("");
 }
 
 function isEmployeeRole(role) {
@@ -902,6 +967,7 @@ document.getElementById("unifiedLoginForm").addEventListener("submit", (event) =
   const role = document.getElementById("loginRole").value;
   const email = document.getElementById("loginEmail").value.trim();
   const name = document.getElementById("loginName").value.trim();
+  const city = document.getElementById("loginCity").value.trim();
   if (!email) {
     showToast("Please enter your email address");
     return;
@@ -910,7 +976,7 @@ document.getElementById("unifiedLoginForm").addEventListener("submit", (event) =
     showToast("Please enter your name");
     return;
   }
-  state.activeUser = { name, email, role };
+  state.activeUser = { name, email, role, city: city || "" };
   if (isEmployeeRole(role) && !verifyEmployeeAccess(role)) {
     showToast("Access denied. No approved application found for this role. Apply first.");
     return;
@@ -1308,6 +1374,21 @@ document.querySelectorAll(".segmented button").forEach((button) => {
     renderMarketplace();
   });
 });
+
+document.querySelectorAll(".login-tab").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll(".login-tab").forEach(t => t.classList.remove("active"));
+    tab.classList.add("active");
+    const isEmployee = tab.dataset.tab === "employee";
+    document.getElementById("roleField").style.display = isEmployee ? "" : "none";
+    document.getElementById("applyLinks").style.display = isEmployee ? "" : "none";
+    document.getElementById("loginCity").closest("label").style.display = isEmployee ? "none" : "";
+    document.getElementById("unifiedLoginForm").querySelector("button").textContent = isEmployee ? "Sign In" : "Sign Up & Continue";
+    if (!isEmployee) document.getElementById("loginRole").value = "customer";
+  });
+});
+document.getElementById("roleField").style.display = "none";
+document.getElementById("applyLinks").style.display = "none";
 
 if (state.activePortal) {
   document.getElementById("loginScreen").classList.add("hidden");

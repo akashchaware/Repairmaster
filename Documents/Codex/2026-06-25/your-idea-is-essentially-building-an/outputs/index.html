@@ -24,13 +24,26 @@
           <span>India electronics service platform</span>
         </div>
       </div>
+      <div class="login-section-tabs">
+        <button class="login-tab active" data-tab="customer">Customer</button>
+        <button class="login-tab" data-tab="employee">Employee</button>
+      </div>
+
       <form id="unifiedLoginForm">
         <label>
-          Name
-          <input id="loginName" value="Priya Sharma" placeholder="Full name">
+          Full name
+          <input id="loginName" placeholder="Your full name">
         </label>
         <label>
-          I am a
+          Email
+          <input id="loginEmail" type="email" placeholder="your@email.com">
+        </label>
+        <label>
+          City
+          <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi">
+        </label>
+        <label id="roleField">
+          Role
           <select id="loginRole">
             <option value="customer">Customer</option>
             <option value="marketplace">Marketplace Buyer</option>
@@ -41,21 +54,17 @@
           </select>
         </label>
         <label>
-          Email
-          <input id="loginEmail" value="customer@repairingmaster.in" placeholder="Email address">
-        </label>
-        <label>
           Password
-          <input id="loginPassword" type="password" value="Mumbai@123" placeholder="Password">
+          <input id="loginPassword" type="password" placeholder="Create a password">
         </label>
-        <button class="primary-action full" type="submit">Sign In</button>
+        <button class="primary-action full" type="submit">Sign Up &amp; Continue</button>
       </form>
 
-      <div class="apply-links">
-        <span class="eyebrow">Apply for a role</span>
+      <div class="apply-links" id="applyLinks">
+        <span class="eyebrow">Apply for employee role</span>
         <div class="apply-grid">
           <form data-employee-role="technician">
-            <input placeholder="Full name" value="Ravi Kumar">
+            <input placeholder="Full name">
             <select>
               <option>Mumbai West</option>
               <option>Bengaluru Central</option>
@@ -65,7 +74,7 @@
             <button type="submit">Apply Tech</button>
           </form>
           <form data-employee-role="repairmaster">
-            <input placeholder="Store name" value="FixHub Andheri">
+            <input placeholder="Store name">
             <select>
               <option>Mumbai West</option>
               <option>Bengaluru Central</option>
@@ -75,7 +84,7 @@
             <button type="submit">Apply RM</button>
           </form>
           <form data-employee-role="coordinator">
-            <input placeholder="Full name" value="Ananya Rao">
+            <input placeholder="Full name">
             <select>
               <option>Mumbai West</option>
               <option>Bengaluru Central</option>
@@ -85,7 +94,7 @@
             <button type="submit">Apply Coord</button>
           </form>
           <form data-employee-role="admin">
-            <input placeholder="Full name" value="Operations Manager">
+            <input placeholder="Full name">
             <select>
               <option>All India</option>
               <option>Mumbai Region</option>
@@ -149,14 +158,6 @@
         </div>
       </div>
 
-      <div class="user-badge" id="userBadge">
-        <div class="user-avatar" id="userAvatar">U</div>
-        <div class="user-info">
-          <strong id="userName">User</strong>
-          <span id="userRoleBadge">Role</span>
-        </div>
-      </div>
-
       <nav class="role-nav" aria-label="Workspace role">
         <label class="nav-select-label">
           Service operation
@@ -205,6 +206,7 @@
 
       <section class="view active" id="customer">
         <div class="split-layout">
+          <div class="customer-left-col">
             <form class="request-form" id="serviceForm" novalidate>
               <div class="section-title">
                 <p class="eyebrow">New request</p>
@@ -212,7 +214,7 @@
               </div>
               <label>
                 Your name
-                <input id="nameInput" value="Priya Sharma" placeholder="Full name" required>
+                <input id="nameInput" placeholder="Full name" required>
               </label>
               <label>
                 Device type
@@ -242,7 +244,7 @@
               </label>
             <label>
               Model
-              <input id="modelInput" value="iPhone 14 Pro" placeholder="Device model">
+              <input id="modelInput" placeholder="Device model">
             </label>
             <label>
               Problem
@@ -261,12 +263,12 @@
             </label>
             <label>
               Pickup address
-              <input id="addressInput" value="Bandra West, Mumbai, Maharashtra" placeholder="Customer address">
+              <input id="addressInput" placeholder="Customer address">
             </label>
             <button class="primary-action full" type="submit">Create Service Request</button>
           </form>
 
-          <div class="customer-panel">
+          <div class="customer-panel" id="customerPanel" style="display:none">
             <div class="device-hero">
               <div class="phone-art">
                 <span class="speaker"></span>
@@ -285,7 +287,6 @@
                 </div>
               </div>
             </div>
-
             <div id="requirementsSection" class="requirements-form" style="display:none">
               <p class="eyebrow">Customisation</p>
               <h3>Back cover &amp; glass requirements</h3>
@@ -314,7 +315,6 @@
               </label>
               <button class="primary-action full" id="saveRequirements">Save Requirements</button>
             </div>
-
             <div class="quote-box">
               <div>
                 <p class="eyebrow">Quotation</p>
@@ -324,7 +324,6 @@
               <strong id="quoteAmount">INR 0</strong>
               <button id="approveQuote">Approve</button>
             </div>
-
             <div class="condition-upload" id="conditionSection">
               <p class="eyebrow">Device condition</p>
               <h3>Upload photos before pickup</h3>
@@ -335,7 +334,6 @@
               </div>
               <div class="condition-previews" id="conditionPreviews"></div>
             </div>
-
             <div id="invoiceSection" class="invoice-box" style="display:none">
               <p class="eyebrow">Payment</p>
               <h3>Invoice</h3>
@@ -347,11 +345,19 @@
               </div>
               <p id="paymentConfirmation" style="display:none;color:var(--green);font-weight:700"></p>
             </div>
-
             <div class="timeline" id="customerTimeline"></div>
           </div>
         </div>
-      </section>
+
+        <div class="local-deals-section">
+          <div class="section-title">
+            <p class="eyebrow" id="dealsLocationLabel">Hot deals near you</p>
+            <h2>Devices from nearby RepairMasters</h2>
+          </div>
+          <div class="local-deals-grid" id="localDealsGrid"></div>
+        </div>
+      </div>
+    </section>
 
       <section class="view" id="coordinator">
         <div class="metric-grid">
