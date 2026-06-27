@@ -221,7 +221,7 @@ let marketFilter = "All";
 async function loadState() {
   try {
     const { data } = await supabase.from('app_state').select('data').eq('id', 1).single();
-    if (data && data.data && Object.keys(data.data).length > 1) {
+    if (data && data.data && Object.keys(data.data).length > 0) {
       return normalizeState(data.data);
     }
   } catch (e) { /* fall through */ }
@@ -453,7 +453,8 @@ function loginPortal(portal) {
 function updateUserBadge() {
   const user = state.activeUser || { name: "User", email: "", role: state.activePortal };
   document.getElementById("userName").textContent = user.name;
-  document.getElementById("userRoleBadge").textContent = user.role || state.activePortal || "";
+  const roleLabel = ({ customer:"Customer", marketplace:"Marketplace Buyer", technician:"Technician", repairmaster:"RepairingMaster", coordinator:"Coordinator", admin:"Admin" })[user.role || state.activePortal] || user.role || state.activePortal || "";
+  document.getElementById("userRoleBadge").textContent = roleLabel;
   document.getElementById("userAvatar").textContent = (user.name || "U").charAt(0).toUpperCase();
 }
 
@@ -1835,6 +1836,7 @@ function renderHotDeals() {
 }
 
 function renderAll() {
+  updateUserBadge();
   if (!state.activePortal || state.activePortal === 'login') {
     renderHotDeals();
     return;
@@ -1933,7 +1935,11 @@ document.getElementById("unifiedLoginForm")?.addEventListener("submit", async (e
 
   try {
     if (mode === "signup") {
-      const { user } = await signUpWithEmail(email, password, { name, email, role: 'customer', city: city || '' });
+      const result = await signUpWithEmail(email, password, { name, email, role: 'customer', city: city || '' });
+      if (!result.user) {
+        showToast("Account created! Check your email to confirm before signing in.");
+        return;
+      }
       state.activeUser = { name, email, role: 'customer', city: city || '' };
       loginPortal('customer');
     } else {
@@ -2299,6 +2305,14 @@ document.getElementById("serviceForm")?.addEventListener("submit", async (event)
   const address = document.getElementById("addressInput").value.trim();
   if (!name || !phone || !model || !address) {
     showToast("Please fill in your name, phone, device model, and pickup address");
+    return;
+  }
+  const existing = state.requests.find(r => r.customer === name && r.model === model && r.issue === issue && r.statusIndex < statuses.length - 1);
+  if (existing) {
+    showToast(`You already have an open request (${existing.id}) for this device.`);
+    state.activeRequestId = existing.id;
+    saveState();
+    renderAll();
     return;
   }
   const id = `RM-${1024 + state.requests.length}`;
@@ -2735,7 +2749,11 @@ window.handleTestLogin = async function handleTestLogin(roleKey) {
     try {
       result = await signInWithEmail(c.email, c.password);
     } catch {
-      await signUpWithEmail(c.email, c.password, { name: c.email.split('@')[0], email: c.email, phone: '', role: c.role, city: '' });
+      const signupResult = await signUpWithEmail(c.email, c.password, { name: c.displayName, email: c.email, phone: '', role: c.role, city: '' });
+      if (!signupResult.user) {
+        showToast("Email confirmation required. Check your inbox or contact admin to enable auto-confirm.");
+        return;
+      }
       result = await signInWithEmail(c.email, c.password);
     }
     if (result.user) {

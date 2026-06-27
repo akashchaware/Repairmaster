@@ -94,6 +94,6 @@ s.onmessage=function(e){if(e.data=='reload')location.reload()};
         pass
 
 print(f"\n  Live-reload dev server running at:")
-print(f"  http://localhost:{PORT}/\n")
+print(f"  http://127.0.0.1:{PORT}/\n")
 print(f"  Edit any .html/.css/.js file and the browser will auto-refresh.\n")
 http.server.HTTPServer(("0.0.0.0", PORT), Handler).serve_forever()

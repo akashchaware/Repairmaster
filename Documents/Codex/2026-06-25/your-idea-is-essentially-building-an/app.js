@@ -59,6 +59,24 @@ const roleDisplayNames = {
   coordinator: "Coordinator", admin: "Admin"
 };
 
+// Local notification helpers (uses localStorage via supabase mock)
+function createNotification({ user_id, message, type, link }) {
+  const table = JSON.parse(localStorage.getItem("_table_notifications") || "[]");
+  table.push({ id: Date.now(), user_id, message, type, link, read: false, created_at: new Date().toISOString() });
+  localStorage.setItem("_table_notifications", JSON.stringify(table));
+}
+function notifyRoles(roles, message, type = 'info', link = '') {
+  const table = JSON.parse(localStorage.getItem("_table_notifications") || "[]");
+  roles.forEach(role => {
+    table.push({ id: Date.now(), user_id: role, message, type, link, read: false, created_at: new Date().toISOString() });
+  });
+  localStorage.setItem("_table_notifications", JSON.stringify(table));
+}
+function getNotifications(userId) {
+  const table = JSON.parse(localStorage.getItem("_table_notifications") || "[]");
+  return table.filter(n => n.user_id === userId || n.user_id === 'all').sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
 const defaultDeviceIcon = "image/device-repair.png";
 
 function firstApproved(role) {
@@ -367,7 +385,8 @@ function loginPortal(portal) {
 function updateUserBadge() {
   const user = state.activeUser || { name: "User", email: "", role: state.activePortal };
   document.getElementById("userName").textContent = user.name;
-  document.getElementById("userRoleBadge").textContent = user.role || state.activePortal || "";
+  const displayRole = roleDisplayNames[user.role] || roleDisplayNames[state.activePortal] || user.role || state.activePortal || "";
+  document.getElementById("userRoleBadge").textContent = displayRole;
   document.getElementById("userAvatar").textContent = (user.name || "U").charAt(0).toUpperCase();
 }
 
@@ -1107,6 +1126,7 @@ function renderHotDeals() {
 function renderAll() {
   renderHotDeals();
   applyPortalAccess();
+  updateUserBadge();
   updateTopbarUser();
   renderProgress();
   renderCustomer();
@@ -1178,6 +1198,7 @@ document.getElementById("userAvatarBtn").addEventListener("click", openAccountOv
 document.getElementById("accountCloseBtn").addEventListener("click", closeAccountOverlay);
 document.getElementById("accountOverlayScrim").addEventListener("click", closeAccountOverlay);
 document.getElementById("accountLogoutBtn").addEventListener("click", () => { closeAccountOverlay(); logoutPortal(); });
+document.getElementById("switchPortalBtn").addEventListener("click", () => { closeAccountOverlay(); logoutPortal(); });
 document.getElementById("backBtn").addEventListener("click", () => switchView(allowedViews()[0] || "customer"));
 document.getElementById("mbHomeBtn").addEventListener("click", () => switchView(allowedViews()[0] || "customer"));
 document.getElementById("mbNotifBtn").addEventListener("click", () => {
@@ -1225,6 +1246,19 @@ document.getElementById("advanceStatus").addEventListener("click", () => {
   }
   request.statusIndex = next;
   if (next === 9) request.invoiceSent = true;
+
+  // Notify coordinator
+  notifyRoles(['coordinator'], `${request.id} → ${nextStatus}`, 'info', 'coordinator');
+  // Notify customer
+  if (request.customer) {
+    createNotification({ user_id: 'customer_' + request.customer, message: `${request.id}: ${nextStatus}`, type: 'info', link: 'customer' });
+  }
+  // Notify technician on pickup/delivery
+  if (next === 4) notifyRoles(['technician'], `Pickup scheduled for ${request.id}`, 'info', 'technician');
+  if (next === 11) notifyRoles(['technician'], `${request.id} ready for delivery`, 'info', 'technician');
+  // Notify repairmaster on diagnosis
+  if (next === 6) notifyRoles(['repairmaster'], `${request.id} ready for diagnosis`, 'info', 'repairmaster');
+
   saveState();
   renderAll();
   showToast(`${request.id} → ${nextStatus}`);
@@ -1248,6 +1282,14 @@ document.getElementById("serviceForm").addEventListener("submit", (event) => {
   const address = document.getElementById("addressInput").value.trim();
   if (!name || !model || !address) {
     showToast("Please fill in your name, device model, and pickup address");
+    return;
+  }
+  const existing = state.requests.find(r => r.customer === name && r.model === model && r.issue === issue && r.statusIndex < statuses.length - 1);
+  if (existing) {
+    showToast(`You already have an open request (${existing.id}) for this device.`);
+    state.activeRequestId = existing.id;
+    saveState();
+    renderAll();
     return;
   }
   const id = `RM-${1024 + state.requests.length}`;

@@ -1450,6 +1450,8 @@ input[type="file"]::-webkit-file-upload-button:hover {
   border-radius: 8px; background: transparent; font-weight: 700; cursor: pointer;
 }
 .overlay-logout:hover { background: #fde8e8; border-color: var(--red); color: var(--red); }
+.overlay-switch { margin-top: 8px; border-color: var(--teal); color: var(--teal-dark); }
+.overlay-switch:hover { background: #e8f4f3; border-color: var(--teal-dark); color: var(--teal-dark); }
 
 /* Assignment role tag */
 .assign-label {
