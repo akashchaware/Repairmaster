@@ -996,12 +996,48 @@ function renderDetailActions(req) {
     html += `<button class="primary-action rd-btn rd-btn-accept" data-rid="${rid}">✓ Accept Request</button>
              <button class="secondary-action rd-btn rd-btn-reject" data-rid="${rid}" style="color:#e74c3c">✗ Reject</button>`;
   } else if (si === 1) {
-    html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer will provide requirements (back cover, glass type). Then prepare and send quotation from the <strong>RepairingMaster</strong> portal.</p>
-              <button onclick="switchPortal('repairmaster','${rid}')" class="primary-action rd-btn rd-btn-view-rm" style="display:inline-block">Go to RepairingMaster →</button>`;
+    const parts = state.repairParts || [];
+    html += `<div class="quote-builder">
+      <p class="eyebrow" style="margin-bottom:6px">Prepare quotation — select parts</p>
+      <div class="parts-grid" id="coordPartsGrid">${parts.map((part, i) => `
+        <div class="part-row" data-pi="${i}">
+          <label class="part-check-label">
+            <input type="checkbox" ${part.stock > 0 ? "" : "disabled"} data-pi="${i}" class="coord-part-cb">
+            <span class="part-name">${part.name}</span>
+          </label>
+          <div class="part-fields">
+            <input class="part-cost-input" type="number" min="0" value="${part.cost}" data-pi="${i}" data-coord-part-cost="${i}">
+          </div>
+        </div>`).join('')}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0">
+        <label style="font-size:12px">Base fee (INR)
+          <input id="coordBaseFee" type="number" min="0" value="${state.baseInspectionFee || 499}" style="width:100%">
+        </label>
+        <label style="font-size:12px">Tax / GST (%)
+          <input id="coordTaxPct" type="number" min="0" max="100" value="${state.taxPercent || 18}" style="width:100%">
+        </label>
+        <label style="font-size:12px">Service charge (%)
+          <input id="coordSCPct" type="number" min="0" max="100" value="${state.serviceChargePercent || 10}" style="width:100%">
+        </label>
+        <label style="font-size:12px">Min service fee (INR)
+          <input id="coordMinFee" type="number" min="0" value="${state.minServiceFee || 150}" style="width:100%">
+        </label>
+      </div>
+      <button class="primary-action rd-btn rd-btn-send-quote" data-rid="${rid}" style="margin-top:4px">Send Quotation</button>
+    </div>`;
   } else if (si === 3) {
+    const approvedTechs = (state.applications || []).filter(a => a.role === "Technician" && a.status === "Approved");
+    const approvedRMs = (state.applications || []).filter(a => a.role === "RepairMaster" && a.status === "Approved");
+    const techOpts = approvedTechs.map(a =>
+      `<option value="${a.name}${a.location ? ' \u2014 ' + a.location : ''}">${a.name}${a.location ? ' \u2014 ' + a.location : ''}</option>`
+    ).join('');
+    const rmOpts = approvedRMs.map(a =>
+      `<option value="${a.name}${a.location ? ' \u2014 ' + a.location : ''}">${a.name}${a.location ? ' \u2014 ' + a.location : ''}</option>`
+    ).join('');
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer approved! Assign technician and repair partner:</p>
-             <select class="rd-pickup-tech" data-rid="${rid}"><option>Ravi - Mumbai West</option><option>Arjun - Bengaluru Central</option><option>Imran - Delhi NCR</option></select>
-             <select class="rd-repair-partner" data-rid="${rid}" style="margin-top:4px"><option>FixHub Andheri</option><option>TechCare Koramangala</option><option>Prime Mobile Lab Noida</option></select>
+             <select class="rd-pickup-tech" data-rid="${rid}">${techOpts || '<option value="">No approved technicians</option>'}</select>
+             <select class="rd-repair-partner" data-rid="${rid}" style="margin-top:4px">${rmOpts || '<option value="">No approved repair partners</option>'}</select>
              <button class="primary-action rd-btn rd-btn-assign" data-rid="${rid}" style="margin-top:8px">✓ Assign & Schedule Pickup</button>`;
   } else if (si === 10) {
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Payment has been initiated. Verify and confirm:</p>
@@ -1037,12 +1073,48 @@ function setupCoordinatorHandlers() {
       if (request.customer_id) await createNotification({ user_id: request.customer_id, message: `Your request ${request.id} could not be accepted at this time.`, type: 'warning' });
       showToast('Request rejected');
     }
+    if (btn.classList.contains('rd-btn-send-quote')) {
+      const cbs = container.querySelectorAll('.coord-part-cb:checked');
+      if (!cbs.length) { showToast('Select at least one repair part'); return; }
+      const baseFee = Number(document.getElementById('coordBaseFee')?.value) || 499;
+      const taxPct = Number(document.getElementById('coordTaxPct')?.value) || 0;
+      const scPct = Number(document.getElementById('coordSCPct')?.value) || 0;
+      const minFee = Number(document.getElementById('coordMinFee')?.value) || 150;
+      const selectedItems = [];
+      let partsTotal = 0;
+      cbs.forEach(cb => {
+        const pi = Number(cb.dataset.pi);
+        const costInput = container.querySelector(`[data-coord-part-cost="${pi}"]`);
+        const cost = costInput ? Number(costInput.value) : (state.repairParts[pi]?.cost || 0);
+        const name = state.repairParts[pi]?.name || 'Part';
+        selectedItems.push({ name, cost });
+        partsTotal += cost;
+      });
+      const subtotal = Math.max(partsTotal + baseFee, minFee);
+      const serviceCharge = Math.round(subtotal * scPct / 100);
+      const taxableAmount = subtotal + serviceCharge;
+      const taxAmount = Math.round(taxableAmount * taxPct / 100);
+      const amount = taxableAmount + taxAmount;
+      request.quoteItems = selectedItems;
+      request.quoteAmount = amount;
+      request.taxPercent = taxPct;
+      request.taxAmount = taxAmount;
+      request.serviceChargePercent = scPct;
+      request.serviceChargeAmount = serviceCharge;
+      request.baseInspectionFee = baseFee;
+      request.statusIndex = 2;
+      saveState(); renderAll();
+      await notifyRoles(['coordinator'], `Quotation sent for ${request.id} — ${formatCurrency(amount)}`, 'success', 'coordinator');
+      showToast(`Quotation sent for ${formatCurrency(amount)}`);
+    }
     if (btn.classList.contains('rd-btn-assign')) {
       const techEl = container.querySelector(`.rd-pickup-tech[data-rid="${rid}"]`);
       const partnerEl = container.querySelector(`.rd-repair-partner[data-rid="${rid}"]`);
-      if (techEl) request.pickupTech = techEl.value;
-      if (partnerEl) request.repairPartner = partnerEl.value;
-      request.statusIndex = Math.max(request.statusIndex, 4);
+      if (!techEl || !techEl.value) { showToast('Select a pickup technician'); return; }
+      if (!partnerEl || !partnerEl.value) { showToast('Select a repair partner'); return; }
+      request.pickupTech = techEl.value;
+      request.repairPartner = partnerEl.value;
+      request.statusIndex = 4;
       saveState(); renderAll();
       await notifyRoles(['technician'], `Pickup scheduled for ${request.id}`, 'info', 'technician');
       await notifyRoles(['coordinator'], `${request.id}: Technician & repair partner assigned`, 'info', 'coordinator');
@@ -1050,7 +1122,7 @@ function setupCoordinatorHandlers() {
     }
     if (btn.classList.contains('rd-btn-verify-payment')) {
       request.paymentStatus = "Paid";
-      request.statusIndex = Math.max(request.statusIndex, 11);
+      request.statusIndex = 11;
       saveState(); renderAll();
       await notifyRoles(['coordinator'], `Payment verified for ${request.id}`, 'success', 'coordinator');
       showToast('Payment confirmed');
@@ -2186,6 +2258,26 @@ document.getElementById("advanceStatus")?.addEventListener("click", async () => 
   const request = activeRequest();
   if (request.statusIndex >= statuses.length - 1) {
     showToast("Repair lifecycle is already complete");
+    return;
+  }
+  if (request.statusIndex === 1 && (!request.quoteItems || !request.quoteItems.length)) {
+    showToast("Prepare and send quotation before advancing");
+    return;
+  }
+  if (request.statusIndex === 3 && !request.pickupTech) {
+    showToast("Assign a pickup technician before scheduling pickup");
+    return;
+  }
+  if (request.statusIndex === 3 && !request.repairPartner) {
+    showToast("Assign a repair partner before scheduling pickup");
+    return;
+  }
+  if (request.statusIndex === 4 && !request.otpVerified) {
+    showToast("OTP must be verified before marking device picked up");
+    return;
+  }
+  if (request.statusIndex === 6 && !request.repairPartner) {
+    showToast("Assign a repair partner before starting repair");
     return;
   }
   if (request.statusIndex === 9 && !request.paymentMethod) {

@@ -1224,6 +1224,10 @@ document.getElementById("advanceStatus").addEventListener("click", () => {
   }
   const next = current + 1;
   const nextStatus = statuses[next];
+  if (next === 2 && (!request.quoteItems || !request.quoteItems.length)) {
+    showToast("Prepare and send quotation before advancing");
+    return;
+  }
   if (next === 4 && !request.pickupTech) {
     showToast("Assign a pickup technician before scheduling pickup");
     return;
@@ -1409,8 +1413,12 @@ document.getElementById("assignDelivery").addEventListener("click", () => {
 
 document.getElementById("saveAssignments").addEventListener("click", () => {
   const request = activeRequest();
-  request.pickupTech = document.getElementById("pickupTech").value;
-  request.repairPartner = document.getElementById("repairPartner").value;
+  const techVal = document.getElementById("pickupTech").value;
+  const partnerVal = document.getElementById("repairPartner").value;
+  if (!techVal) { showToast("Select a pickup technician"); return; }
+  if (!partnerVal) { showToast("Select a repair partner"); return; }
+  request.pickupTech = techVal;
+  request.repairPartner = partnerVal;
   if (request.statusIndex >= 3) request.statusIndex = 4;
   saveState();
   renderAll();
