@@ -289,6 +289,23 @@ INSERT INTO quotation_parts (name, price, category) VALUES
   ('Charging IC', 400, 'Charging'),
   ('SIM Card Slot', 150, 'Misc');
 
+-- Auto-confirm emails for test accounts (run this if "Confirm email" is ON in Supabase Auth)
+-- Create or replace the function
+CREATE OR REPLACE FUNCTION public.auto_confirm_test_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE auth.users SET email_confirmed_at = now() WHERE id = NEW.id AND email LIKE '%@test.repairmaster';
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Drop and recreate the trigger
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.auto_confirm_test_user();
+
 -- Grant anon role access to all tables
 GRANT ALL ON app_state, profiles, applications, repair_requests, marketplace_listings, market_orders, quotation_parts, service_charge_config, notifications, job_postings TO anon, authenticated;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated;
