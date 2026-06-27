@@ -2713,7 +2713,28 @@ window.handleTestLogin = async function handleTestLogin(roleKey) {
   const c = TEST_CREDS[roleKey];
   if (!c) return;
   try {
-    const result = await signInWithEmail(c.email, c.password);
+    let result;
+    try {
+      result = await signInWithEmail(c.email, c.password);
+    } catch {
+      await signUpWithEmail(c.email, c.password, { name: c.email.split('@')[0], email: c.email, phone: '', role: c.role, city: '' });
+      result = await signInWithEmail(c.email, c.password);
+    }
+    if (result.user) {
+      let profile = await fetchProfile(result.user.id);
+      if (!profile) {
+        await supabase.from('profiles').insert({
+          id: result.user.id,
+          email: c.email,
+          name: c.email.split('@')[0],
+          phone: '',
+          role: c.role,
+          city: ''
+        });
+      } else if (!profile.role) {
+        await supabase.from('profiles').update({ role: c.role }).eq('id', result.user.id);
+      }
+    }
     state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
     state.activePortal = c.role;
     state.activeView = portalLanding[c.role] || 'customer';
