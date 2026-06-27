@@ -32,18 +32,18 @@
 
       <p class="login-helper" id="loginHelper">Sign up to book a repair or browse deals</p>
 
-      <form id="unifiedLoginForm">
+      <form id="unifiedLoginForm" autocomplete="off">
         <label>
           Full name
-          <input id="loginName" placeholder="Your full name">
+          <input id="loginName" placeholder="Your full name" autocomplete="name">
         </label>
         <label>
           Email
-          <input id="loginEmail" type="email" placeholder="your@email.com">
+          <input id="loginEmail" type="email" placeholder="your@email.com" autocomplete="email">
         </label>
         <label>
           City
-          <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi">
+          <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi" autocomplete="off">
         </label>
         <label id="roleField">
           Role
@@ -57,7 +57,7 @@
         </label>
         <label>
           Password
-          <input id="loginPassword" type="password" placeholder="Create a password">
+          <input id="loginPassword" type="password" placeholder="Create a password" autocomplete="new-password">
         </label>
         <button class="primary-action full" type="submit">Sign Up &amp; Continue</button>
       </form>
@@ -86,11 +86,11 @@
           <button class="role-pill" data-role="coordinator">Coordinator</button>
         </div>
 
-        <form id="applicationForm" class="app-form">
-          <label>Full name <input id="appName" placeholder="Full name" required></label>
-          <label>Email <input id="appEmail" type="email" placeholder="your@email.com" required></label>
-          <label>Phone <input id="appPhone" placeholder="Phone number" required></label>
-          <label>Location <select id="appLocation">
+        <form id="applicationForm" class="app-form" autocomplete="off">
+          <label>Full name <input id="appName" placeholder="Full name" autocomplete="name" required></label>
+          <label>Email <input id="appEmail" type="email" placeholder="your@email.com" autocomplete="email" required></label>
+          <label>Phone <input id="appPhone" placeholder="Phone number" autocomplete="tel" required></label>
+          <label>Location <select id="appLocation" autocomplete="off">
             <option>Mumbai West</option>
             <option>Bengaluru Central</option>
             <option>Delhi NCR</option>
