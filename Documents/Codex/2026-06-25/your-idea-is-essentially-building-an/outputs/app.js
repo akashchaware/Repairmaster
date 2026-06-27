@@ -2708,7 +2708,10 @@ function initLoginUI() {
 
 // Testing login — global function called from HTML onclick
 window.handleGoogleLogin = async function handleGoogleLogin() {
-  const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + '/' }
+  });
   if (error) showToast(error.message);
 };
 
