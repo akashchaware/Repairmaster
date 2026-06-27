@@ -1042,7 +1042,7 @@ function setupCoordinatorHandlers() {
 }
 setupCoordinatorHandlers();
 
-document.getElementById("detailBackBtn").addEventListener("click", () => closeRoleDetail('coordinator'));
+document.getElementById("detailBackBtn")?.addEventListener("click", () => closeRoleDetail('coordinator'));
 
 function renderTechnician() {
   // Detail mode
@@ -1890,9 +1890,9 @@ function verifyEmployeeAccess(role) {
   return state.applications.some((a) => a.role === roleLabel && a.status === "Approved");
 }
 
-document.getElementById("operationSelect").addEventListener("change", (event) => switchView(event.target.value));
+document.getElementById("operationSelect")?.addEventListener("change", (event) => switchView(event.target.value));
 
-document.getElementById("unifiedLoginForm").addEventListener("submit", async (event) => {
+document.getElementById("unifiedLoginForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const role = document.getElementById("loginRole").value;
   const email = document.getElementById("loginEmail").value.trim();
@@ -2017,7 +2017,7 @@ document.querySelectorAll(".role-pill").forEach(pill => {
 });
 
 // Application form submit
-document.getElementById("applicationForm").addEventListener("submit", async (event) => {
+document.getElementById("applicationForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const activePill = document.querySelector(".role-pill.active");
   const roleKey = activePill.dataset.role;
@@ -2123,13 +2123,13 @@ async function renderNotifications() {
   });
 }
 
-document.getElementById("notifBell").addEventListener("click", (e) => {
+document.getElementById("notifBell")?.addEventListener("click", (e) => {
   e.stopPropagation();
-  document.getElementById("notifPanel").classList.toggle("open");
+  document.getElementById("notifPanel")?.classList.toggle("open");
   renderNotifications();
 });
 
-document.getElementById("markAllReadBtn").addEventListener("click", async () => {
+document.getElementById("markAllReadBtn")?.addEventListener("click", async () => {
   const userId = (await getCurrentSession())?.user?.id;
   if (!userId) return;
   await markAllNotificationsRead(userId);
@@ -2138,7 +2138,7 @@ document.getElementById("markAllReadBtn").addEventListener("click", async () => 
 
 document.addEventListener("click", (e) => {
   const panel = document.getElementById("notifPanel");
-  if (panel.classList.contains("open") && !panel.contains(e.target) && e.target.id !== "notifBell") {
+  if (panel?.classList.contains("open") && !panel.contains(e.target) && e.target.id !== "notifBell") {
     panel.classList.remove("open");
   }
 });
@@ -2146,8 +2146,8 @@ document.addEventListener("click", (e) => {
 // Init dynamic fields on page load
 renderDynamicFields("technician");
 
-document.getElementById("logoutButton").addEventListener("click", logoutPortal);
-document.getElementById("sidebarLogoutBtn").addEventListener("click", logoutPortal);
+document.getElementById("logoutButton")?.addEventListener("click", logoutPortal);
+document.getElementById("sidebarLogoutBtn")?.addEventListener("click", logoutPortal);
 
 async function notifyRoles(roles, message, type = 'info', link = '') {
   const { data: users } = await supabase.from('profiles').select('id').in('role', roles);
@@ -2156,7 +2156,7 @@ async function notifyRoles(roles, message, type = 'info', link = '') {
   }
 }
 
-document.getElementById("advanceStatus").addEventListener("click", async () => {
+document.getElementById("advanceStatus")?.addEventListener("click", async () => {
   const request = activeRequest();
   if (request.statusIndex >= statuses.length - 1) {
     showToast("Repair lifecycle is already complete");
@@ -2248,17 +2248,17 @@ document.getElementById("advanceStatus").addEventListener("click", async () => {
   showToast(`${request.id} moved to ${statusName}`);
 });
 
-document.getElementById("resetDemo").addEventListener("click", async () => {
+document.getElementById("resetDemo")?.addEventListener("click", async () => {
   if (!confirm("Reset all demo data? This will clear all requests, applications, and marketplace changes.")) return;
   state = structuredClone(defaultState);
-  document.getElementById("loginScreen").classList.remove("hidden");
+  document.getElementById("loginScreen")?.classList.remove("hidden");
   document.getElementById("appShell").classList.add("hidden");
   await saveState();
   await resetAllData();
   showToast("Demo data reset");
 });
 
-document.getElementById("requestImageInput").addEventListener("change", () => {
+document.getElementById("requestImageInput")?.addEventListener("change", () => {
   const previews = document.getElementById("requestImagePreviews");
   previews.innerHTML = "";
   for (const file of Array.from(document.getElementById("requestImageInput").files)) {
@@ -2268,7 +2268,7 @@ document.getElementById("requestImageInput").addEventListener("change", () => {
   }
 });
 
-document.getElementById("serviceForm").addEventListener("submit", async (event) => {
+document.getElementById("serviceForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const name = document.getElementById("nameInput").value.trim();
   const phone = document.getElementById("phoneInput").value.trim();
@@ -2338,7 +2338,7 @@ document.getElementById("serviceForm").addEventListener("submit", async (event) 
   showToast(`${id} created for ${name} and sent to coordinator`);
 });
 
-document.getElementById("approveQuote").addEventListener("click", async () => {
+document.getElementById("approveQuote")?.addEventListener("click", async () => {
   const request = activeRequest();
   request.quoteApproved = true;
   request.statusIndex = Math.max(request.statusIndex, 3);
@@ -2349,7 +2349,7 @@ document.getElementById("approveQuote").addEventListener("click", async () => {
   showToast("Quotation approved — coordinator notified to assign team");
 });
 
-document.getElementById("uploadConditionBtn").addEventListener("click", async () => {
+document.getElementById("uploadConditionBtn")?.addEventListener("click", async () => {
   const input = document.getElementById("conditionInput");
   const request = activeRequest();
   if (!input.files || !input.files.length) {
@@ -2376,7 +2376,7 @@ document.getElementById("uploadConditionBtn").addEventListener("click", async ()
   input.value = "";
 });
 
-document.getElementById("saveRequirements").addEventListener("click", () => {
+document.getElementById("saveRequirements")?.addEventListener("click", () => {
   const request = activeRequest();
   const backCover = document.getElementById("backCoverInput").value;
   const glassType = document.getElementById("glassInput").value;
@@ -2391,7 +2391,7 @@ document.getElementById("saveRequirements").addEventListener("click", () => {
   showToast("Requirements saved");
 });
 
-document.getElementById("payOnlineBtn").addEventListener("click", () => {
+document.getElementById("payOnlineBtn")?.addEventListener("click", () => {
   const request = activeRequest();
   request.paymentMethod = "Online";
   request.paymentStatus = "Paid";
@@ -2401,7 +2401,7 @@ document.getElementById("payOnlineBtn").addEventListener("click", () => {
   showToast("Online payment received");
 });
 
-document.getElementById("payCodBtn").addEventListener("click", () => {
+document.getElementById("payCodBtn")?.addEventListener("click", () => {
   const request = activeRequest();
   request.paymentMethod = "Cash on Delivery";
   request.paymentStatus = "Pending (COD)";
@@ -2458,7 +2458,7 @@ if (acceptBtn) {
   });
 }
 
-document.getElementById("verifyOtp").addEventListener("click", () => {
+document.getElementById("verifyOtp")?.addEventListener("click", () => {
   const request = activeRequest();
   if (document.getElementById("otpInput").value.length !== 4) {
     showToast("Enter the 4-digit customer OTP");
@@ -2472,7 +2472,7 @@ document.getElementById("verifyOtp").addEventListener("click", () => {
   showToast("OTP verified and pickup confirmed");
 });
 
-document.getElementById("sendQuote").addEventListener("click", () => {
+document.getElementById("sendQuote")?.addEventListener("click", () => {
   const request = activeRequest();
   const selectedCheckboxes = Array.from(document.querySelectorAll(".parts-grid input:checked"));
   if (!selectedCheckboxes.length) {
@@ -2516,7 +2516,7 @@ document.getElementById("sendQuote").addEventListener("click", () => {
   showToast(`Quotation sent for ${formatCurrency(amount)}`);
 });
 
-document.getElementById("listingPrice").addEventListener("input", updateListingCommission);
+document.getElementById("listingPrice")?.addEventListener("input", updateListingCommission);
 
 const minFeeInput = document.getElementById("minServiceFeeInput");
 if (minFeeInput) {
@@ -2554,7 +2554,7 @@ if (scInput) {
   });
 }
 
-document.getElementById("addPartBtn").addEventListener("click", () => {
+document.getElementById("addPartBtn")?.addEventListener("click", () => {
   const name = document.getElementById("newPartName").value.trim();
   const cost = Number(document.getElementById("newPartCost").value || 0);
   const stock = Number(document.getElementById("newPartStock").value || 0);
@@ -2595,7 +2595,7 @@ document.addEventListener("click", (e) => {
   }
 });
 
-document.getElementById("marketUploadForm").addEventListener("submit", async (event) => {
+document.getElementById("marketUploadForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const model = document.getElementById("listingModel").value.trim();
   const basePrice = Number(document.getElementById("listingPrice").value || 0);
@@ -2635,7 +2635,7 @@ document.getElementById("marketUploadForm").addEventListener("submit", async (ev
   document.getElementById("marketUploadForm").reset();
 });
 
-document.getElementById("backCoverForm").addEventListener("submit", (event) => {
+document.getElementById("backCoverForm")?.addEventListener("submit", (event) => {
   event.preventDefault();
   const model = document.getElementById("bcModel").value.trim();
   const design = document.getElementById("bcDesign").value;
