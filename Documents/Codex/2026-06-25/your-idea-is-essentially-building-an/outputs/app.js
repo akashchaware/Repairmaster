@@ -1,7 +1,7 @@
-// Page detection — determines which role page this HTML file serves
-const ALL_ROLES = ['customer','coordinator','technician','repairmaster','admin','marketplace'];
-const PAGE_ROLE = ALL_ROLES.find(r => document.getElementById(r)) || null;
-const IS_LOGIN_PAGE = !PAGE_ROLE;
+// SPA mode — all views on one page, portal switching via state.activePortal
+const IS_SPA = true;
+const PAGE_ROLE = null;
+const IS_LOGIN_PAGE = false;
 
 const statuses = [
   "Request Submitted",
@@ -374,12 +374,12 @@ function handleRoute() {
   if (!hash) {
     return;
   }
-  // Support #request/ID (current page role) and #role/request/ID (cross-page)
+  // Support #request/ID and #role/request/ID
   if (parts[0] === 'request' && parts[1]) {
     const rid = parts[1];
     if (state.requests.find(r => r.id === rid)) {
       state.activeRequestId = rid;
-      const modeKey = ROLE_DETAIL_MODES[PAGE_ROLE];
+      const modeKey = ROLE_DETAIL_MODES[state.activePortal];
       if (modeKey) {
         Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
         state[modeKey] = true;
@@ -406,6 +406,21 @@ window.addEventListener('hashchange', handleRoute);
 // Handle initial hash on page load
 handleRoute();
 
+function switchPortal(role, requestId) {
+  state.activePortal = role;
+  state.activeView = portalLanding[role] || role;
+  if (requestId) {
+    state.activeRequestId = requestId;
+    const modeKey = ROLE_DETAIL_MODES[role];
+    if (modeKey) {
+      Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
+      state[modeKey] = true;
+    }
+  }
+  renderAll();
+  showToast(`${portalNames[role]} opened`);
+}
+
 function closeRoleDetail(role) {
   const modeKey = ROLE_DETAIL_MODES[role];
   if (modeKey) state[modeKey] = false;
@@ -425,16 +440,11 @@ function applyPortalAccess() {
 
 function loginPortal(portal) {
   state.activePortal = portal;
-  // Redirect to role-specific page
-  const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
-  if (!IS_LOGIN_PAGE) {
-    // Already on a role page — just render
-    state.activeView = portalLanding[portal];
-    renderAll();
-    showToast(`${portalNames[portal]} opened`);
-    return;
-  }
-  window.location.href = pageMap[portal] || 'customer.html';
+  state.activeView = portalLanding[portal] || 'customer';
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = '';
+  renderAll();
+  showToast(`${portalNames[portal]} opened`);
 }
 
 function updateUserBadge() {
@@ -446,9 +456,12 @@ function updateUserBadge() {
 
 async function logoutPortal() {
   state.activePortal = null;
+  state.activeUser = null;
   await saveState();
   await signOutUser();
-  window.location.href = 'login.html';
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('appShell').style.display = 'none';
+  window.location.hash = '';
 }
 
 function renderProgress() {
@@ -980,7 +993,7 @@ function renderDetailActions(req) {
              <button class="secondary-action rd-btn rd-btn-reject" data-rid="${rid}" style="color:#e74c3c">✗ Reject</button>`;
   } else if (si === 1) {
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer will provide requirements (back cover, glass type). Then prepare and send quotation from the <strong>RepairingMaster</strong> portal.</p>
-             <a href="repairmaster.html#request/${rid}" class="primary-action rd-btn rd-btn-view-rm" style="display:inline-block;text-decoration:none">Go to RepairingMaster →</a>`;
+              <button onclick="switchPortal('repairmaster','${rid}')" class="primary-action rd-btn rd-btn-view-rm" style="display:inline-block">Go to RepairingMaster →</button>`;
   } else if (si === 3) {
     html += `<p style="font-size:13px;color:var(--muted);margin:0 0 6px">Customer approved! Assign technician and repair partner:</p>
              <select class="rd-pickup-tech" data-rid="${rid}"><option>Ravi - Mumbai West</option><option>Arjun - Bengaluru Central</option><option>Imran - Delhi NCR</option></select>
@@ -1811,11 +1824,14 @@ function renderHotDeals() {
 }
 
 function renderAll() {
-  if (IS_LOGIN_PAGE) {
+  if (!state.activePortal || state.activePortal === 'login') {
     renderHotDeals();
     return;
   }
-  switch (PAGE_ROLE) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const activeView = document.getElementById(state.activePortal);
+  if (activeView) activeView.classList.add('active');
+  switch (state.activePortal) {
     case 'customer': renderCustomer(); break;
     case 'coordinator': renderCoordinator(); break;
     case 'technician': renderTechnician(); break;
@@ -2146,7 +2162,7 @@ document.addEventListener("click", (e) => {
 // Init dynamic fields on page load
 renderDynamicFields("technician");
 
-document.getElementById("logoutButton")?.addEventListener("click", logoutPortal);
+document.getElementById("switchPortalBtn")?.addEventListener("click", logoutPortal);
 document.getElementById("sidebarLogoutBtn")?.addEventListener("click", logoutPortal);
 
 async function notifyRoles(roles, message, type = 'info', link = '') {
@@ -2681,7 +2697,7 @@ function initLoginUI() {
       const roleSelect = document.getElementById("loginRole");
       if (roleSelect) {
         Array.from(roleSelect.options).forEach(opt => {
-          opt.hidden = isEmployee ? !["technician","repairmaster","coordinator","admin"].includes(opt.value) : false;
+          opt.hidden = isEmployee ? !["technician","repairmaster","coordinator"].includes(opt.value) : false;
         });
         roleSelect.value = isEmployee ? "technician" : "customer";
       }
@@ -2708,7 +2724,6 @@ window.handleGoogleLogin = async function handleGoogleLogin() {
 };
 
 const TEST_CREDS = {
-  admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin' },
   coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator' },
   technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician' },
   repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster' }
@@ -2743,8 +2758,7 @@ window.handleTestLogin = async function handleTestLogin(roleKey) {
     state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
     state.activePortal = c.role;
     state.activeView = portalLanding[c.role] || 'customer';
-    const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
-    window.location.href = pageMap[c.role] || 'customer.html';
+    loginPortal(c.role);
   } catch (err) {
     showToast(err.message || "Test login failed");
   }
@@ -2757,12 +2771,8 @@ if (document.readyState === 'loading') {
   initLoginUI();
 }
 (async function initApp() {
-  // Load data from Supabase (falls back to defaults)
   Object.assign(state, await loadState());
-
-  // Check for existing auth session
   const session = await getCurrentSession();
-  const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
 
   if (session) {
     let profile = await fetchProfile(session.user.id);
@@ -2783,26 +2793,16 @@ if (document.readyState === 'loading') {
       state.activeUser = profile;
       state.activePortal = profile.role;
       state.activeView = portalLanding[profile.role] || 'customer';
-
-      if (IS_LOGIN_PAGE) {
-        window.location.href = pageMap[profile.role] || 'customer.html';
-        return;
-      }
-
-      if (PAGE_ROLE && profile.role !== PAGE_ROLE && PAGE_ROLE !== 'marketplace') {
-        window.location.href = pageMap[profile.role] || 'login.html';
-        return;
-      }
-
+      document.getElementById('loginScreen').style.display = 'none';
+      document.getElementById('appShell').style.display = '';
       renderAll();
       showToast(`Welcome back, ${profile.name || profile.email}`);
       return;
     }
   }
 
-  if (IS_LOGIN_PAGE) {
-    renderAll();
-  } else {
-    window.location.href = 'login.html';
-  }
+  // No session — show login screen
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('appShell').style.display = 'none';
+  renderHotDeals();
 })();
