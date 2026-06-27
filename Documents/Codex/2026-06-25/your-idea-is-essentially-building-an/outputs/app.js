@@ -2830,7 +2830,9 @@ window.handleGoogleLogin = async function handleGoogleLogin() {
 const TEST_CREDS = {
   coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator', displayName: 'Testing Coordinator' },
   technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician',  displayName: 'Testing Technician' },
-  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster', displayName: 'Testing RepairMaster' }
+  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster', displayName: 'Testing RepairMaster' },
+  customer:     { email: 'cust@test.repairmaster',   password: 'test123', role: 'customer',    displayName: 'Testing Customer' },
+  admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin',       displayName: 'Testing Admin' }
 };
 
 window.handleTestLogin = async function handleTestLogin(roleKey) {
