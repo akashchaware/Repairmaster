@@ -2791,11 +2791,17 @@ if (document.readyState === 'loading') {
   handleRoute();
   const session = await getCurrentSession();
 
+  // Always show the login screen — do not auto-login from stale session
+  document.getElementById('loginScreen').style.display = '';
+  document.getElementById('appShell').style.display = 'none';
+  renderHotDeals();
+
+  // Pre-fill test login buttons only (no auto-navigate)
   if (session) {
     let profile = await fetchProfile(session.user.id);
     if (!profile) {
       const meta = session.user.user_metadata || {};
-      const newProfile = {
+      profile = {
         id: session.user.id,
         email: session.user.email || meta.email || '',
         name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'User',
@@ -2803,24 +2809,11 @@ if (document.readyState === 'loading') {
         role: 'customer',
         city: ''
       };
-      await supabase.from('profiles').upsert(newProfile);
-      profile = newProfile;
     }
-    if (profile && profile.role) {
-      state.activeUser = profile;
-      state.activePortal = profile.role;
-      state.activeView = portalLanding[profile.role] || 'customer';
-      document.getElementById('loginScreen').style.display = 'none';
-      document.getElementById('appShell').style.display = '';
-      handleRoute();
-      renderAll();
-      showToast(`Welcome back, ${profile.name || profile.email}`);
-      return;
+    if (profile && profile.email) {
+      const emailInput = document.getElementById('loginEmail');
+      if (emailInput) emailInput.value = profile.email;
+      showToast(`Welcome back, ${profile.name || profile.email} — sign in to continue`);
     }
   }
-
-  // No session — show login screen
-  document.getElementById('loginScreen').style.display = '';
-  document.getElementById('appShell').style.display = 'none';
-  renderHotDeals();
 })();
