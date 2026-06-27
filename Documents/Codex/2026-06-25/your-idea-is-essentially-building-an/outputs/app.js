@@ -1929,8 +1929,8 @@ document.getElementById("unifiedLoginForm")?.addEventListener("submit", async (e
         await supabase.from('profiles').upsert({ id: user.id, email, name, role, city: city || '' });
       }
       state.activeUser = profile || { name, email, role, city: city || '' };
-      // Verify approved application
-      if (!await checkEmployeeAccess(user.id, role)) {
+      // Verify approved application (admin bypasses this check)
+      if (role !== 'admin' && !await checkEmployeeAccess(user.id, role)) {
         showToast("Access denied. No approved application found. Apply first.");
         await signOutUser();
         return;
@@ -1948,7 +1948,7 @@ document.getElementById("unifiedLoginForm")?.addEventListener("submit", async (e
         const { user } = await signInWithEmail(email, password);
         const profile = await fetchProfile(user.id);
         state.activeUser = profile || { name, email, role, city: city || '' };
-        if (isEmployeeRole(role) && !await checkEmployeeAccess(user.id, role)) {
+        if (isEmployeeRole(role) && role !== 'admin' && !await checkEmployeeAccess(user.id, role)) {
           showToast("Access denied. No approved application found.");
           await signOutUser();
           return;
