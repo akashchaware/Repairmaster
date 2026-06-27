@@ -19,26 +19,17 @@
         </div>
       </div>
       <div class="login-section-tabs">
-        <button class="login-tab active" data-tab="customer">Customer Sign Up</button>
-        <button class="login-tab" data-tab="employee">Employee Sign In</button>
+        <button class="login-tab" data-tab="signin">Sign In</button>
+        <button class="login-tab active" data-tab="signup">Sign Up</button>
+        <button class="login-tab" data-tab="employee">Employee</button>
       </div>
-      <p class="login-helper" id="loginHelper">Sign up to book a repair or browse deals</p>
+      <p class="login-helper" id="loginHelper">Create an account to get started</p>
       <form id="unifiedLoginForm" autocomplete="off">
-        <label>Full name <input id="loginName" placeholder="Your full name" autocomplete="name"></label>
+        <label id="nameField">Full name <input id="loginName" placeholder="Your full name" autocomplete="name"></label>
         <label>Email <input id="loginEmail" type="email" placeholder="your@email.com" autocomplete="email"></label>
-        <label>City <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi" autocomplete="off"></label>
-        <label id="roleField">
-          Role
-          <select id="loginRole">
-            <option value="customer">Customer</option>
-            <option value="marketplace">Marketplace Buyer</option>
-            <option value="technician">Technician</option>
-            <option value="repairmaster">RepairingMaster</option>
-            <option value="coordinator">Coordinator</option>
-          </select>
-        </label>
-        <label>Password <input id="loginPassword" type="password" placeholder="Create a password" autocomplete="new-password"></label>
-        <button class="primary-action full" type="submit">Sign Up &amp; Continue</button>
+        <label id="cityField">City <input id="loginCity" placeholder="e.g. Mumbai, Bengaluru, Delhi" autocomplete="off"></label>
+        <label>Password <input id="loginPassword" type="password" placeholder="Password" autocomplete="off"></label>
+        <button class="primary-action full" type="submit">Create Account</button>
       </form>
       <div class="divider"><span>or</span></div>
       <button class="google-btn full" onclick="handleGoogleLogin()">

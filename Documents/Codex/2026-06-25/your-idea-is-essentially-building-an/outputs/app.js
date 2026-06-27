@@ -1499,7 +1499,12 @@ function renderAdmin() {
       app.status = "Approved";
       const dbId = app.id;
       if (dbId) await updateApplication(dbId, { status: "Approved" }).catch(() => {});
-      if (app.user_id) await createNotification({ user_id: app.user_id, message: `Your ${app.role} application has been approved. You can now sign in.`, type: 'success' });
+      if (app.user_id) {
+        const roleMap = { 'Technician':'technician','RepairingMaster':'repairmaster','Coordinator':'coordinator' };
+        const profileRole = roleMap[app.role] || app.role?.toLowerCase();
+        await supabase.from('profiles').update({ role: profileRole }).eq('id', app.user_id).catch(() => {});
+        await createNotification({ user_id: app.user_id, message: `Your ${app.role} application has been approved. You can now sign in.`, type: 'success' });
+      }
       saveState();
       renderAll();
       renderNotifications();
@@ -1910,71 +1915,64 @@ document.getElementById("operationSelect")?.addEventListener("change", (event) =
 
 document.getElementById("unifiedLoginForm")?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const role = document.getElementById("loginRole").value;
+  const mode = document.querySelector(".login-tab.active")?.dataset.tab || "signup";
   const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value.trim();
   const name = document.getElementById("loginName").value.trim();
   const city = document.getElementById("loginCity").value.trim();
-  const password = document.getElementById("loginPassword").value.trim();
-  const isEmployeeTab = document.querySelector(".login-tab.active").dataset.tab === "employee";
-  if (!email) {
-    showToast("Please enter your email address");
-    return;
-  }
-  if (!email.includes("@") || !email.includes(".")) {
-    showToast("Enter a valid email address (e.g. yourname@gmail.com)");
-    return;
-  }
-  if (!isEmployeeTab && !name) {
-    showToast("Please enter your name");
-    return;
-  }
-  if (isEmployeeTab && !isEmployeeRole(role)) {
-    showToast("Select an employee role (Technician, RepairingMaster, or Coordinator)");
-    return;
-  }
-  if (isEmployeeRole(role) && !password) {
-    showToast("Please create a password for your account");
-    return;
-  }
+
+  if (!email || !password) { showToast("Email and password are required"); return; }
+  if (!email.includes("@") || !email.includes(".")) { showToast("Enter a valid email address"); return; }
+  if (mode === "signup" && !name) { showToast("Please enter your name"); return; }
+
   try {
-    if (isEmployeeRole(role)) {
-      // Employee — sign in (must already have an account)
-      const { user } = await signInWithEmail(email, password);
-      const profile = await fetchProfile(user.id);
-      if (!profile) {
-        await supabase.from('profiles').upsert({ id: user.id, email, name, role, city: city || '' });
-      }
-      state.activeUser = profile || { name, email, role, city: city || '' };
-      // Verify approved application
-      if (!await checkEmployeeAccess(user.id, role)) {
-        showToast("Access denied. No approved application found. Apply first.");
-        await signOutUser();
-        return;
-      }
-    } else {
-      // Customer — sign up (creates account)
+    if (mode === "signup") {
       const { user } = await signUpWithEmail(email, password, { name, email, role: 'customer', city: city || '' });
       state.activeUser = { name, email, role: 'customer', city: city || '' };
-    }
-    loginPortal(isEmployeeRole(role) ? role : 'customer');
-  } catch (err) {
-    if (err.message && err.message.includes('already registered')) {
-      // User exists — try signing in
-      try {
-        const { user } = await signInWithEmail(email, password);
-        const profile = await fetchProfile(user.id);
-        state.activeUser = profile || { name, email, role, city: city || '' };
-        if (isEmployeeRole(role) && !await checkEmployeeAccess(user.id, role)) {
-          showToast("Access denied. No approved application found.");
+      loginPortal('customer');
+    } else {
+      // Sign In or Employee Sign In
+      const { user } = await signInWithEmail(email, password);
+      const profile = await fetchProfile(user.id);
+      state.activeUser = profile || { name: email.split('@')[0], email, role: 'customer', city: '' };
+      const userRole = profile?.role || 'customer';
+
+      if (mode === "employee") {
+        if (!isEmployeeRole(userRole)) {
+          showToast("No employee role found for this account. Apply for a position first.");
           await signOutUser();
           return;
         }
-        loginPortal(isEmployeeRole(role) ? role : (profile?.role || 'customer'));
-      } catch (e2) {
-        showToast(e2.message || "Login failed. Check your password.");
+        if (!await checkEmployeeAccess(user.id, userRole)) {
+          showToast("Access denied. No approved application found for your role.");
+          await signOutUser();
+          return;
+        }
       }
+      loginPortal(userRole);
+    }
+  } catch (err) {
+    const msg = err.message || '';
+    if (msg.includes('already registered') || msg.includes('Email not confirmed')) {
+      try {
+        const { user } = await signInWithEmail(email, password);
+        const profile = await fetchProfile(user.id);
+        state.activeUser = profile || { name: email.split('@')[0], email, role: 'customer', city: '' };
+        const userRole = profile?.role || 'customer';
+        if (mode === "employee") {
+          if (!isEmployeeRole(userRole) || !await checkEmployeeAccess(user.id, userRole)) {
+            showToast("No approved application found.");
+            await signOutUser();
+            return;
+          }
+        }
+        loginPortal(userRole);
+      } catch { showToast("Login failed. Check your password."); }
+    } else if (msg.includes('Invalid login credentials')) {
+      if (mode === "signin" || mode === "employee") showToast("Wrong email or password.");
+      else showToast("Account not found. Try the Sign Up tab to create one.");
     } else {
-      showToast(err.message || "Authentication failed");
+      showToast(msg || "Authentication failed");
     }
   }
 });
@@ -2671,50 +2669,41 @@ document.querySelectorAll(".segmented button").forEach((button) => {
   });
 });
 
-// Login UI initialization (only runs on login.html where elements exist)
+// Login UI initialization
 function initLoginUI() {
   const loginTabs = document.querySelectorAll(".login-tab");
-  if (!loginTabs.length) return; // Not on login page
+  if (!loginTabs.length) return;
 
-  // Login tab switching
+  function applyTab(tab) {
+    const mode = tab.dataset.tab;
+    const nameField = document.getElementById("nameField");
+    const cityField = document.getElementById("cityField");
+    const applyLinks = document.getElementById("applyLinks");
+    const submitBtn = document.getElementById("unifiedLoginForm")?.querySelector("button");
+    const loginHelper = document.getElementById("loginHelper");
+    const testingLogin = document.getElementById("testingLogin");
+    if (nameField) nameField.style.display = mode === "signup" ? "" : "none";
+    if (cityField) cityField.style.display = mode === "signup" ? "" : "none";
+    if (applyLinks) applyLinks.style.display = mode === "employee" ? "" : "none";
+    if (testingLogin) testingLogin.style.display = mode === "employee" ? "" : "none";
+    if (submitBtn) submitBtn.textContent = mode === "signup" ? "Create Account" : "Sign In";
+    if (loginHelper) {
+      if (mode === "signin") loginHelper.textContent = "Sign in to your account";
+      else if (mode === "signup") loginHelper.textContent = "Create an account to get started";
+      else loginHelper.textContent = "Already have an approved application? Sign in.";
+    }
+  }
+
   loginTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
       loginTabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
-      const isEmployee = tab.dataset.tab === "employee";
-      const roleField = document.getElementById("roleField");
-      const applyLinks = document.getElementById("applyLinks");
-      const cityLabel = document.getElementById("loginCity")?.closest("label");
-      const submitBtn = document.getElementById("unifiedLoginForm")?.querySelector("button");
-      const loginHelper = document.getElementById("loginHelper");
-      if (roleField) roleField.style.display = isEmployee ? "" : "none";
-      if (applyLinks) applyLinks.style.display = isEmployee ? "" : "none";
-      if (cityLabel) cityLabel.style.display = isEmployee ? "none" : "";
-      if (submitBtn) submitBtn.textContent = isEmployee ? "Sign In" : "Sign Up & Continue";
-      if (loginHelper) loginHelper.textContent = isEmployee
-        ? "Already have an approved application? Sign in to your portal."
-        : "Sign up to book a repair or browse deals from nearby RepairingMasters";
-      const roleSelect = document.getElementById("loginRole");
-      if (roleSelect) {
-        Array.from(roleSelect.options).forEach(opt => {
-          opt.hidden = isEmployee ? !["technician","repairmaster","coordinator"].includes(opt.value) : false;
-        });
-        roleSelect.value = isEmployee ? "technician" : "customer";
-      }
+      applyTab(tab);
     });
   });
 
-  // Initial state: hide employee fields, show only customer/marketplace roles
-  const roleField = document.getElementById("roleField");
-  const applyLinks = document.getElementById("applyLinks");
-  const roleSelect = document.getElementById("loginRole");
-  if (roleField) roleField.style.display = "none";
-  if (applyLinks) applyLinks.style.display = "none";
-  if (roleSelect) {
-    Array.from(roleSelect.options).forEach(opt => {
-      opt.hidden = !["customer","marketplace"].includes(opt.value);
-    });
-  }
+  // Initial state — Sign Up tab active
+  applyTab(document.querySelector(".login-tab.active"));
 }
 
 // Testing login — global function called from HTML onclick
