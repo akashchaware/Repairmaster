@@ -1411,7 +1411,7 @@ document.getElementById("saveAssignments").addEventListener("click", () => {
   const request = activeRequest();
   request.pickupTech = document.getElementById("pickupTech").value;
   request.repairPartner = document.getElementById("repairPartner").value;
-  request.statusIndex = Math.max(request.statusIndex, 4);
+  if (request.statusIndex >= 3) request.statusIndex = 4;
   saveState();
   renderAll();
   showToast("Pickup scheduled and assignments saved");

@@ -389,20 +389,20 @@ function handleRoute() {
       matched = true;
     }
   }
-  // Cross-page format: #role/request/ID
+  // Cross-page format: #role/request/ID — only process if role matches active portal
   const role = parts[0];
   if (!matched && parts[1] === 'request' && parts[2]) {
     const modeKey = ROLE_DETAIL_MODES[role];
-    if (modeKey && state.requests.find(r => r.id === parts[2])) {
+    if (modeKey && state.requests.find(r => r.id === parts[2]) && (!state.activePortal || role === state.activePortal)) {
       state.activeRequestId = parts[2];
       Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
       state[modeKey] = true;
-      renderAll();
+      if (state.activePortal) renderAll();
       matched = true;
     }
   }
   if (!matched) {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+    if (state.activePortal) history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 }
 
@@ -1336,7 +1336,7 @@ function renderRepairingMaster() {
     listEl.innerHTML = '<div class="empty-state">No assigned repair jobs</div>';
   } else {
     listEl.innerHTML = assigned.map(r => `
-      <button class="request-row" onclick="navigateTo('#rm/request/${r.id}')">
+      <button class="request-row" onclick="navigateTo('#repairmaster/request/${r.id}')">
         <div><h3>${r.id} — ${r.model}</h3><p>${r.customer} | ${r.issue}</p></div>
         <span class="status-pill">${statuses[r.statusIndex]}</span>
       </button>
@@ -1399,7 +1399,7 @@ function renderRmDetail(req) {
   });
 }
 
-document.getElementById("rmDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('rm'));
+document.getElementById("rmDetailBackBtn")?.addEventListener("click", () => closeRoleDetail('repairmaster'));
 
 function renderAdmin() {
   // Detail mode
@@ -2469,7 +2469,7 @@ if (saveAssignBtn) {
     const request = activeRequest();
     request.pickupTech = document.getElementById("pickupTech").value;
     request.repairPartner = document.getElementById("repairPartner").value;
-    request.statusIndex = Math.max(request.statusIndex, 4);
+    if (request.statusIndex >= 3) request.statusIndex = 4;
     saveState();
     renderAll();
     showToast("Pickup scheduled and assignments saved");
@@ -2812,6 +2812,7 @@ if (document.readyState === 'loading') {
       state.activeView = portalLanding[profile.role] || 'customer';
       document.getElementById('loginScreen').style.display = 'none';
       document.getElementById('appShell').style.display = '';
+      handleRoute();
       renderAll();
       showToast(`Welcome back, ${profile.name || profile.email}`);
       return;
