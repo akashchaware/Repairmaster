@@ -27,7 +27,7 @@
       <form id="unifiedLoginForm">
         <label>
           Name
-          <input id="loginName" value="Priya Sharma" placeholder="Full name">
+          <input id="loginName" value="Testing Technician" placeholder="Full name">
         </label>
         <label>
           I am a
@@ -42,7 +42,7 @@
         </label>
         <label>
           Email
-          <input id="loginEmail" value="customer@repairingmaster.in" placeholder="Email address">
+          <input id="loginEmail" value="test@repairingmaster.in" placeholder="Email address">
         </label>
         <label>
           Password
@@ -55,7 +55,7 @@
         <span class="eyebrow">Apply for a role</span>
         <div class="apply-grid">
           <form data-employee-role="technician">
-            <input placeholder="Full name" value="Ravi Kumar">
+            <input placeholder="Full name" value="Testing Technician">
             <select>
               <option>Mumbai West</option>
               <option>Bengaluru Central</option>
@@ -65,7 +65,7 @@
             <button type="submit">Apply Tech</button>
           </form>
           <form data-employee-role="repairmaster">
-            <input placeholder="Store name" value="FixHub Andheri">
+            <input placeholder="Store name" value="Testing RepairMaster">
             <select>
               <option>Mumbai West</option>
               <option>Bengaluru Central</option>
@@ -140,56 +140,16 @@
   </section>
 
   <div class="app-shell hidden" id="appShell">
-    <aside class="sidebar">
-      <div class="brand">
-        <img class="brand-logo" src="image/logo.png" alt="RepairingMaster logo">
-        <div>
-          <strong>RepairingMaster</strong>
-          <span>India electronics service platform</span>
-        </div>
-      </div>
-
-      <div class="user-badge" id="userBadge">
-        <div class="user-avatar" id="userAvatar">U</div>
-        <div class="user-info">
-          <strong id="userName">User</strong>
-          <span id="userRoleBadge">Role</span>
-        </div>
-      </div>
-
-      <nav class="role-nav" aria-label="Workspace role">
-        <label class="nav-select-label">
-          Service operation
-          <select id="operationSelect">
-            <option value="customer">Customer Login</option>
-            <option value="coordinator">Coordinator Desk</option>
-            <option value="technician">Technician Jobs</option>
-            <option value="repairmaster">RepairMaster Bench</option>
-            <option value="admin">Admin Console</option>
-            <option value="marketplace">Device on sell</option>
-          </select>
-        </label>
-      </nav>
-
-      <div class="sidebar-panel">
-        <span class="panel-label">Current Ticket</span>
-        <strong id="activeRequestLabel">RM-1024</strong>
-        <p id="activeRequestMeta">iPhone 14 Pro - Screen damage</p>
-      </div>
-
-      <div class="sidebar-footer">
-        <button class="sidebar-logout" id="sidebarLogoutBtn">Logout</button>
-      </div>
-    </aside>
-
     <main class="content">
       <header class="topbar">
         <div>
+          <button class="back-btn" id="backBtn" aria-label="Back to dashboard">←</button>
+          <div id="userTopInfo"></div>
           <p class="eyebrow" id="portalEyebrow">Mobile repair operations - India</p>
           <h1 id="pageTitle">Customer App</h1>
         </div>
         <div class="top-actions">
-          <button class="secondary-action" id="logoutButton">Switch Portal</button>
+          <button class="user-avatar-btn" id="userAvatarBtn"><span id="topbarAvatar">U</span></button>
           <button class="icon-button" id="resetDemo" title="Reset demo data" aria-label="Reset demo data">Reset</button>
           <button class="primary-action" id="advanceStatus">Move to Next Status</button>
         </div>
@@ -212,7 +172,7 @@
               </div>
               <label>
                 Your name
-                <input id="nameInput" value="Priya Sharma" placeholder="Full name" required>
+                <input id="nameInput" value="Testing Customer" placeholder="Full name" required>
               </label>
               <label>
                 Device type
@@ -373,21 +333,13 @@
               <p class="eyebrow">Assignment</p>
               <h2>Control desk</h2>
             </div>
-            <label>
-              Pickup technician
-              <select id="pickupTech">
-                <option>Ravi - Mumbai West</option>
-                <option>Arjun - Bengaluru Central</option>
-                <option>Imran - Delhi NCR</option>
-              </select>
+            <label class="assign-label">
+              <span class="assign-role-tag">ASSIGN TECHNICIAN</span>
+              <select id="pickupTech"></select>
             </label>
-            <label>
-              RepairMaster
-              <select id="repairPartner">
-                <option>FixHub Andheri</option>
-                <option>TechCare Koramangala</option>
-                <option>Prime Mobile Lab Noida</option>
-              </select>
+            <label class="assign-label">
+              <span class="assign-role-tag">ASSIGN REPAIRMASTER</span>
+              <select id="repairPartner"></select>
             </label>
             <label>
               Delivery window
@@ -419,11 +371,7 @@
             <p class="eyebrow">Assign delivery</p>
             <label>
               Delivery technician
-              <select id="deliveryTech">
-                <option>Ravi - Mumbai West</option>
-                <option>Arjun - Bengaluru Central</option>
-                <option>Imran - Delhi NCR</option>
-              </select>
+              <select id="deliveryTech"></select>
             </label>
             <label>
               Delivery address
@@ -435,6 +383,12 @@
       </section>
 
       <section class="view" id="technician">
+        <div class="role-summary" id="techSummary">
+          <div class="summary-line"><span class="summary-label">Job</span><strong id="techSummaryJob">RM-1024</strong></div>
+          <div class="summary-line"><span class="summary-label">Status</span><span class="status-pill" id="techSummaryStatus">Active</span></div>
+          <div class="summary-line"><span class="summary-label">Pending</span><span id="techSummaryPending">OTP verification</span></div>
+          <div class="summary-line"><span class="summary-label">Next</span><span id="techSummaryNext">Device handover to RepairMaster</span></div>
+        </div>
         <div class="route-board">
           <div class="map-visual">
             <span class="pin customer-pin"></span>
@@ -463,6 +417,12 @@
       </section>
 
       <section class="view" id="repairmaster">
+        <div class="role-summary" id="rmSummary">
+          <div class="summary-line"><span class="summary-label">Job</span><strong id="rmSummaryJob">RM-1024</strong></div>
+          <div class="summary-line"><span class="summary-label">Status</span><span class="status-pill" id="rmSummaryStatus">Active</span></div>
+          <div class="summary-line"><span class="summary-label">Pending</span><span id="rmSummaryPending">Diagnosis &amp; quotation</span></div>
+          <div class="summary-line"><span class="summary-label">Next</span><span id="rmSummaryNext">Send quotation to customer</span></div>
+        </div>
         <div class="partner-layout">
           <div class="diagnosis-card">
             <p class="eyebrow">Diagnosis</p>
@@ -624,9 +584,38 @@
         <div class="market-grid" id="marketGrid"></div>
       </section>
     </main>
+
+    <div class="overlay" id="accountOverlay">
+      <div class="overlay-scrim" id="accountOverlayScrim"></div>
+      <div class="overlay-panel">
+        <button class="overlay-close" id="accountCloseBtn">&times;</button>
+        <div class="overlay-avatar" id="overlayAvatar">U</div>
+        <strong id="overlayName">User</strong>
+        <span class="overlay-email" id="overlayEmail">user@email.com</span>
+        <span class="overlay-role" id="overlayRole">Role</span>
+        <button class="overlay-logout" id="accountLogoutBtn">Sign Out</button>
+      </div>
+    </div>
+
+    <nav class="mobile-bottom-nav" id="mobileBottomNav" aria-label="Mobile navigation">
+      <button class="mb-btn active" id="mbHomeBtn" aria-label="Dashboard">
+        <span class="mb-icon">⌂</span>
+        <span class="mb-label">Home</span>
+      </button>
+      <button class="mb-btn" id="mbNotifBtn" aria-label="Notifications">
+        <span class="mb-icon">🔔<span class="notif-badge" id="mbNotifBadge" style="display:none">0</span></span>
+        <span class="mb-label">Alerts</span>
+      </button>
+      <button class="mb-btn" id="mbAccountBtn" aria-label="Account">
+        <span class="mb-icon">👤</span>
+        <span class="mb-label">Account</span>
+      </button>
+    </nav>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="outputs/supabase.js"></script>
+  <script src="local-supabase.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

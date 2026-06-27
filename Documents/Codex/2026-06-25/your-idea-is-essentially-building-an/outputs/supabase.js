@@ -11,7 +11,7 @@ var supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPA
 
 // ─── Auth ───────────────────────────────────────────
 async function signUpWithEmail(email, password, profile) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
   if (error) throw error;
   if (data.user) {
     await supabase.from('profiles').upsert({

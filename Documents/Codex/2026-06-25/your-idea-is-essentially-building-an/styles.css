@@ -38,8 +38,8 @@ button {
 }
 
 .app-shell {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
@@ -272,142 +272,7 @@ button {
   display: block;
 }
 
-.sidebar {
-  background: #17252f;
-  color: #f7fbfc;
-  padding: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
 
-.brand {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.brand-mark {
-  width: 46px;
-  height: 46px;
-  border-radius: 8px;
-  background: #25b4a8;
-  color: #06231f;
-  display: grid;
-  place-items: center;
-  font-weight: 900;
-}
-
-.brand strong,
-.brand span {
-  display: block;
-}
-
-.brand span {
-  color: #b6c7d0;
-  font-size: 13px;
-  margin-top: 2px;
-}
-
-.role-nav {
-  display: grid;
-  gap: 8px;
-}
-
-.nav-select-label {
-  color: #d9e7eb;
-  margin: 0;
-}
-
-.nav-select-label select {
-  margin-top: 8px;
-  background: #223644;
-  border-color: #355061;
-  color: #ffffff;
-}
-
-.role-button {
-  border: 1px solid transparent;
-  background: transparent;
-  color: #d9e7eb;
-  padding: 12px 14px;
-  border-radius: 8px;
-  text-align: left;
-}
-
-.role-button:hover,
-.role-button.active {
-  background: #223644;
-  border-color: #355061;
-  color: #ffffff;
-}
-
-.role-button.locked {
-  display: none;
-}
-
-.user-badge {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
-  background: #1d303b;
-  border-radius: 8px;
-}
-.user-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #25b4a8;
-  color: #06231f;
-  display: grid;
-  place-items: center;
-  font-weight: 800;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-.user-info {
-  min-width: 0;
-}
-.user-info strong {
-  display: block;
-  font-size: 15px;
-  line-height: 1.3;
-}
-.user-info span {
-  font-size: 12px;
-  color: #b6c7d0;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.sidebar-panel {
-  padding: 16px;
-  border-radius: 8px;
-  background: #223644;
-  border: 1px solid #365265;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-  padding-top: 8px;
-}
-.sidebar-logout {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #4d6a7a;
-  border-radius: 8px;
-  background: transparent;
-  color: #d9e7eb;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-}
-.sidebar-logout:hover {
-  background: #3a2a2a;
-  border-color: #b55a5a;
-  color: #ffb3b3;
-}
 
 .panel-label,
 .eyebrow {
@@ -465,6 +330,42 @@ button {
   margin-bottom: 18px;
 }
 
+#userTopInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 2px 0 4px;
+}
+#userTopInfo .user-name-tag {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--text);
+}
+#userTopInfo .user-role-tag {
+  font-size: 12px;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 1px 8px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+#userTopInfo .testing-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 1px 7px;
+  border-radius: 99px;
+  border: 1px solid #f59e0b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+#userTopInfo .ticket-tag {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
 h1,
 h2,
 h3,
@@ -571,6 +472,9 @@ h3 {
 
 .step.done {
   background: var(--teal);
+}
+.step.clickable {
+  cursor: pointer;
 }
 
 .step.current {
@@ -1500,6 +1404,119 @@ input[type="file"]::-webkit-file-upload-button:hover {
   50% { transform: scale(1.05); }
 }
 
+/* Back button */
+.back-btn {
+  background: none; border: none; font-size: 24px;
+  padding: 0 8px 0 0; cursor: pointer; color: var(--ink);
+  line-height: 1;
+}
+
+/* User avatar button (topbar) */
+.user-avatar-btn {
+  width: 42px; height: 42px; border-radius: 50%;
+  background: #25b4a8; color: #06231f; border: 2px solid #fff;
+  font-weight: 800; font-size: 18px; cursor: pointer;
+  display: grid; place-items: center; box-shadow: 0 2px 8px rgba(0,0,0,.12);
+}
+
+/* Account Overlay */
+.overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: none; align-items: center; justify-content: center;
+}
+.overlay.open { display: flex; }
+.overlay-scrim {
+  position: absolute; inset: 0; background: rgba(0,0,0,.45);
+}
+.overlay-panel {
+  position: relative; background: var(--surface); border-radius: 16px;
+  padding: 32px 28px; text-align: center; min-width: 280px;
+  box-shadow: var(--shadow); display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+}
+.overlay-close {
+  position: absolute; top: 10px; right: 14px; background: none;
+  border: none; font-size: 26px; cursor: pointer; color: var(--muted);
+}
+.overlay-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: #25b4a8; color: #06231f; display: grid;
+  place-items: center; font-weight: 800; font-size: 28px;
+}
+.overlay-email { color: var(--muted); font-size: 14px; }
+.overlay-role { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; background: #e8f4f3; padding: 4px 10px; border-radius: 999px; color: var(--teal-dark); font-weight: 800; }
+.overlay-logout {
+  margin-top: 16px; width: 100%; padding: 12px; border: 1px solid var(--line);
+  border-radius: 8px; background: transparent; font-weight: 700; cursor: pointer;
+}
+.overlay-logout:hover { background: #fde8e8; border-color: var(--red); color: var(--red); }
+
+/* Assignment role tag */
+.assign-label {
+  display: grid; gap: 6px; margin-bottom: 14px;
+}
+.assign-role-tag {
+  font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.5px; padding: 4px 10px; border-radius: 4px;
+  display: inline-block; width: fit-content;
+  background: #e8f4f3; color: var(--teal-dark);
+}
+
+/* Role Summary Notification Card */
+.role-summary {
+  background: var(--surface);
+  border: 1px solid var(--teal);
+  border-left: 5px solid var(--teal);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+}
+.summary-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.summary-label {
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 11px;
+  text-transform: uppercase;
+  min-width: 52px;
+}
+.summary-line strong {
+  font-size: 14px;
+}
+.summary-line .status-pill {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+/* Mobile Bottom Nav */
+.mobile-bottom-nav {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: #17252f; padding: 8px 0; justify-content: space-around;
+  z-index: 20; border-top: 1px solid #355061;
+}
+.mb-btn {
+  background: none; border: none; color: #9eb5c1; display: flex;
+  flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 16px; cursor: pointer; font-size: 11px; font-weight: 700;
+}
+.mb-btn.active { color: #25b4a8; }
+.mb-icon { font-size: 22px; line-height: 1; position: relative; }
+.notif-badge {
+  position: absolute; top: -6px; right: -10px;
+  background: var(--red); color: #fff; font-size: 10px;
+  font-weight: 800; min-width: 16px; height: 16px;
+  border-radius: 999px; display: grid; place-items: center;
+  padding: 0 4px; line-height: 1;
+}
+
 @media (max-width: 1100px) {
   .login-screen {
     flex-direction: column;
@@ -1523,50 +1540,11 @@ input[type="file"]::-webkit-file-upload-button:hover {
   }
 
   .app-shell {
-    grid-template-columns: 1fr;
+    padding-bottom: 64px;
   }
 
-  .sidebar {
-    position: sticky;
-    top: 0;
-    z-index: 5;
-    padding: 14px;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .sidebar .brand {
-    flex-shrink: 0;
-  }
-
-  .user-badge {
-    padding: 6px 10px;
-    gap: 8px;
-  }
-
-  .user-avatar {
-    width: 30px;
-    height: 30px;
-    font-size: 14px;
-  }
-
-  .user-info span {
-    display: none;
-  }
-
-  .role-nav {
-    flex: 1;
-    min-width: 200px;
-  }
-
-  .sidebar-panel {
-    display: none;
-  }
-
-  .sidebar-footer {
-    display: none;
+  .mobile-bottom-nav {
+    display: flex;
   }
 
   .split-layout,
@@ -1622,6 +1600,13 @@ input[type="file"]::-webkit-file-upload-button:hover {
 
   .primary-action {
     flex: 1;
+  }
+
+  .top-actions {
+    gap: 6px;
+  }
+  .user-avatar-btn {
+    width: 36px; height: 36px; font-size: 15px;
   }
 
   .part-cost-input {

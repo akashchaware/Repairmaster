@@ -307,10 +307,10 @@ function activeRequest() {
   // Role-specific fallback: show first assigned request
   const user = state.activeUser;
   if (user && user.role === 'technician') {
-    return state.requests.find(r => r.pickupTech === user.name && r.statusIndex < 14) || state.requests[0];
+    return state.requests.find(r => (r.pickupTech === user.name || r.pickupTech.startsWith(user.name + ' \u2014') || r.pickupTech.startsWith(user.name + ' -')) && r.statusIndex < 14) || state.requests[0];
   }
   if (user && user.role === 'repairmaster') {
-    return state.requests.find(r => r.repairPartner === user.name && r.statusIndex < 14) || state.requests[0];
+    return state.requests.find(r => (r.repairPartner === user.name || r.repairPartner.startsWith(user.name + ' \u2014') || r.repairPartner.startsWith(user.name + ' -')) && r.statusIndex < 14) || state.requests[0];
   }
   if (user && user.role === 'customer') {
     return state.requests.find(r => r.customer === user.name) || state.requests[0];
@@ -374,6 +374,7 @@ function handleRoute() {
   if (!hash) {
     return;
   }
+  let matched = false;
   // Support #request/ID and #role/request/ID
   if (parts[0] === 'request' && parts[1]) {
     const rid = parts[1];
@@ -385,26 +386,28 @@ function handleRoute() {
         state[modeKey] = true;
         renderAll();
       }
-      return;
+      matched = true;
     }
   }
   // Cross-page format: #role/request/ID
   const role = parts[0];
-  if (parts[1] === 'request' && parts[2]) {
+  if (!matched && parts[1] === 'request' && parts[2]) {
     const modeKey = ROLE_DETAIL_MODES[role];
     if (modeKey && state.requests.find(r => r.id === parts[2])) {
       state.activeRequestId = parts[2];
       Object.values(ROLE_DETAIL_MODES).forEach(k => state[k] = false);
       state[modeKey] = true;
       renderAll();
-      return;
+      matched = true;
     }
+  }
+  if (!matched) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
   }
 }
 
 window.addEventListener('hashchange', handleRoute);
-// Handle initial hash on page load
-handleRoute();
+// Handle initial hash on page load (runs after loadState in initApp)
 
 function switchPortal(role, requestId) {
   state.activePortal = role;
@@ -1069,7 +1072,10 @@ function renderTechnician() {
   document.getElementById("techRequestView").style.display = 'none';
 
   const techName2 = state.activeUser?.name || '';
-  const myJobs = state.requests.filter(r => r.pickupTech === techName2);
+  const myJobs = state.requests.filter(r => {
+    const tech = r.pickupTech || '';
+    return tech === techName2 || tech.startsWith(techName2 + ' \u2014') || tech.startsWith(techName2 + ' -');
+  });
   const myActive = myJobs.filter(r => r.statusIndex >= 1 && r.statusIndex < 11).length;
   const myDone = myJobs.filter(r => r.statusIndex >= 11 && r.statusIndex < 14).length;
   document.getElementById("techAssignedCount").textContent = myJobs.length;
@@ -1129,7 +1135,7 @@ function renderTechnician() {
 
   // Assigned requests list
   const techName = state.activeUser?.name || '';
-  const assigned = state.requests.filter(r => r.pickupTech === techName && r.statusIndex < 14);
+  const assigned = state.requests.filter(r => (r.pickupTech === techName || r.pickupTech.startsWith(techName + ' \u2014') || r.pickupTech.startsWith(techName + ' -')) && r.statusIndex < 14);
   const listEl = document.getElementById("techRequestsList");
   if (!assigned.length) {
     listEl.innerHTML = '<div class="empty-state">No assigned jobs</div>';
@@ -1255,7 +1261,7 @@ function renderRepairingMaster() {
   document.getElementById("rmRequestView").style.display = 'none';
 
   const rmName2 = state.activeUser?.name || '';
-  const myRms = state.requests.filter(r => r.repairPartner === rmName2);
+  const myRms = state.requests.filter(r => r.repairPartner === rmName2 || r.repairPartner.startsWith(rmName2 + ' \u2014') || r.repairPartner.startsWith(rmName2 + ' -'));
   const myRmActive = myRms.filter(r => r.statusIndex >= 6 && r.statusIndex < 11).length;
   const myRmDone = myRms.filter(r => r.statusIndex >= 13).length;
   document.getElementById("rmAssignedCount").textContent = myRms.length;
@@ -1323,7 +1329,7 @@ function renderRepairingMaster() {
 
   // Assigned requests list
   const rmName = state.activeUser?.name || '';
-  const assigned = state.requests.filter(r => r.repairPartner === rmName && r.statusIndex < 14);
+  const assigned = state.requests.filter(r => (r.repairPartner === rmName || r.repairPartner.startsWith(rmName + ' \u2014') || r.repairPartner.startsWith(rmName + ' -')) && r.statusIndex < 14);
   const listEl = document.getElementById("rmRequestsList");
   if (!assigned.length) {
     listEl.innerHTML = '<div class="empty-state">No assigned repair jobs</div>';
@@ -1549,7 +1555,7 @@ function renderAdmin() {
     return;
   }
   document.getElementById("techPerformanceList").innerHTML = techNames.map((name) => {
-    const assigned = state.requests.filter((r) => r.pickupTech === name);
+    const assigned = state.requests.filter((r) => (r.pickupTech || '').startsWith(name + ' \u2014') || (r.pickupTech || '').startsWith(name + ' -') || r.pickupTech === name);
     const total = assigned.length;
     const completed = assigned.filter((r) => r.statusIndex >= 11).length;
     const active = assigned.filter((r) => r.statusIndex >= 1 && r.statusIndex < 11).length;
@@ -2716,9 +2722,9 @@ window.handleGoogleLogin = async function handleGoogleLogin() {
 };
 
 const TEST_CREDS = {
-  coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator' },
-  technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician' },
-  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster' }
+  coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator', displayName: 'Testing Coordinator' },
+  technician:   { email: 'tech@test.repairmaster',   password: 'test123', role: 'technician',  displayName: 'Testing Technician' },
+  repairmaster: { email: 'rm@test.repairmaster',     password: 'test123', role: 'repairmaster', displayName: 'Testing RepairMaster' }
 };
 
 window.handleTestLogin = async function handleTestLogin(roleKey) {
@@ -2738,16 +2744,16 @@ window.handleTestLogin = async function handleTestLogin(roleKey) {
         await supabase.from('profiles').insert({
           id: result.user.id,
           email: c.email,
-          name: c.email.split('@')[0],
+          name: c.displayName,
           phone: '',
           role: c.role,
           city: ''
         });
-      } else if (!profile.role) {
-        await supabase.from('profiles').update({ role: c.role }).eq('id', result.user.id);
+      } else {
+        await supabase.from('profiles').update({ name: c.displayName, role: c.role }).eq('id', result.user.id);
       }
     }
-    state.activeUser = { name: c.email.split('@')[0], email: c.email, role: c.role };
+    state.activeUser = { name: c.displayName, email: c.email, role: c.role };
     state.activePortal = c.role;
     state.activeView = portalLanding[c.role] || 'customer';
     loginPortal(c.role);
@@ -2764,6 +2770,7 @@ if (document.readyState === 'loading') {
 }
 (async function initApp() {
   Object.assign(state, await loadState());
+  handleRoute();
   const session = await getCurrentSession();
 
   if (session) {

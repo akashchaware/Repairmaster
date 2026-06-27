@@ -23,7 +23,7 @@ const orderStatuses = [
   "Delivered"
 ];
 
-const storageKey = "repairingmaster-state-v4";
+const storageKey = "repairingmaster-state-v5";
 const ownerCommissionRate = 0.10;
 
 const portalAccess = {
@@ -53,7 +53,18 @@ const portalNames = {
   admin: "Admin Portal"
 };
 
+const roleDisplayNames = {
+  customer: "Customer", marketplace: "Marketplace Buyer",
+  technician: "Technician", repairmaster: "RepairMaster",
+  coordinator: "Coordinator", admin: "Admin"
+};
+
 const defaultDeviceIcon = "image/device-repair.png";
+
+function firstApproved(role) {
+  const found = state.applications.find(a => a.role === role && a.status === "Approved");
+  return found ? found.name + (found.location ? " — " + found.location : "") : role === "Technician" ? "Testing Technician — Test Lab" : "Testing RepairMaster — Test Lab";
+}
 
 function displayPrice(basePrice) {
   return Math.round(Number(basePrice || 0) * (1 + ownerCommissionRate));
@@ -80,6 +91,8 @@ const defaultState = {
   activeUser: null,
   activeRequestId: "RM-1024",
   applications: [
+    { name: "Testing Technician", role: "Technician", location: "Test Lab", status: "Approved" },
+    { name: "Testing RepairMaster", role: "RepairMaster", location: "Test Lab", status: "Approved" },
     { name: "Ravi Kumar", role: "Technician", location: "Mumbai West", status: "Approved" },
     { name: "FixHub Andheri", role: "RepairMaster", location: "Mumbai West", status: "Approved" },
     { name: "Ananya Rao", role: "Coordinator", location: "Mumbai West", status: "Approved" },
@@ -109,8 +122,8 @@ const defaultState = {
       issue: "Screen damage",
       address: "Bandra West, Mumbai, Maharashtra",
       statusIndex: 5,
-      pickupTech: "Ravi - Mumbai West",
-      repairPartner: "FixHub Andheri",
+      pickupTech: "Testing Technician — Test Lab",
+      repairPartner: "Testing RepairMaster — Test Lab",
       quoteAmount: 3568,
       quoteApproved: true,
       paymentStatus: "Pending",
@@ -137,8 +150,8 @@ const defaultState = {
       issue: "Battery issue",
       address: "Indiranagar, Bengaluru, Karnataka",
       statusIndex: 7,
-      pickupTech: "Arjun - Bengaluru Central",
-      repairPartner: "TechCare Koramangala",
+      pickupTech: "Testing Technician — Test Lab",
+      repairPartner: "Testing RepairMaster — Test Lab",
       quoteAmount: 4299,
       quoteApproved: true,
       paymentStatus: "Pending",
@@ -166,8 +179,8 @@ const defaultState = {
       issue: "Charging port fault",
       address: "Sector 62, Noida, Uttar Pradesh",
       statusIndex: 10,
-      pickupTech: "Imran - Delhi NCR",
-      repairPartner: "Prime Mobile Lab Noida",
+      pickupTech: "Testing Technician — Test Lab",
+      repairPartner: "Testing RepairMaster — Test Lab",
       quoteAmount: 5999,
       quoteApproved: true,
       paymentStatus: "Pending",
@@ -304,9 +317,11 @@ function switchView(view) {
   };
 
   document.getElementById("operationSelect").value = nextView;
-  document.getElementById("pageTitle").textContent = titles[nextView];
+  const req = activeRequest();
+  document.getElementById("pageTitle").textContent = titles[nextView] + (req ? ` — ${req.id}` : "");
   document.getElementById("advanceStatus").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
   document.querySelector(".status-strip").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
+  updateUserTopInfo();
   saveState();
 }
 
@@ -323,10 +338,28 @@ function applyPortalAccess() {
 function loginPortal(portal) {
   state.activePortal = portal;
   state.activeView = portalLanding[portal];
+
+  // Auto-select the request assigned to the current user
+  const user = state.activeUser;
+  if (user) {
+    if (portal === "technician") {
+      const mine = state.requests.find(r =>
+        r.pickupTech && (r.pickupTech.includes(user.name) || user.name.includes(r.pickupTech.split(" —")[0].split(" -")[0]))
+      );
+      if (mine) state.activeRequestId = mine.id;
+    } else if (portal === "repairmaster") {
+      const mine = state.requests.find(r =>
+        r.repairPartner && (r.repairPartner.includes(user.name) || user.name.includes(r.repairPartner.split(" —")[0].split(" -")[0]))
+      );
+      if (mine) state.activeRequestId = mine.id;
+    }
+  }
+
   document.getElementById("loginScreen").classList.add("hidden");
   document.getElementById("appShell").classList.remove("hidden");
   applyPortalAccess();
   updateUserBadge();
+  updateTopbarUser();
   renderAll();
   showToast(`${portalNames[portal]} opened`);
 }
@@ -338,8 +371,45 @@ function updateUserBadge() {
   document.getElementById("userAvatar").textContent = (user.name || "U").charAt(0).toUpperCase();
 }
 
+function updateTopbarUser() {
+  const user = state.activeUser || { name: "User", role: state.activePortal };
+  const initial = (user.name || "U").charAt(0).toUpperCase();
+  document.getElementById("topbarAvatar").textContent = initial;
+  updateUserTopInfo();
+}
+
+function updateUserTopInfo() {
+  const user = state.activeUser;
+  const el = document.getElementById("userTopInfo");
+  if (!el) return;
+  if (!user) { el.innerHTML = ""; return; }
+  const roleDisplay = roleDisplayNames[user.role] || user.role || "";
+  const isTesting = user.name.toLowerCase().includes("testing") || (user.email && user.email.includes("test.com"));
+  let html = `<span class="user-name-tag">${user.name}</span><span class="user-role-tag">${roleDisplay}</span>`;
+  if (isTesting) html += `<span class="testing-badge">Testing</span>`;
+  const req = activeRequest();
+  if (req) html += `<span class="ticket-tag">| ${req.id}</span>`;
+  el.innerHTML = html;
+}
+
+function openAccountOverlay() {
+  const user = state.activeUser || { name: "User", email: "", role: state.activePortal };
+  const initial = (user.name || "U").charAt(0).toUpperCase();
+  document.getElementById("overlayAvatar").textContent = initial;
+  document.getElementById("overlayName").textContent = user.name;
+  document.getElementById("overlayEmail").textContent = user.email || "No email";
+  const displayRole = roleDisplayNames[user.role] || user.role || "N/A";
+  document.getElementById("overlayRole").textContent = displayRole;
+  document.getElementById("accountOverlay").classList.add("open");
+}
+
+function closeAccountOverlay() {
+  document.getElementById("accountOverlay").classList.remove("open");
+}
+
 function logoutPortal() {
   state.activePortal = null;
+  document.getElementById("userTopInfo").innerHTML = "";
   saveState();
   document.getElementById("appShell").classList.add("hidden");
   document.getElementById("loginScreen").classList.remove("hidden");
@@ -350,8 +420,19 @@ function renderProgress() {
   document.getElementById("statusText").textContent = statuses[request.statusIndex];
   document.getElementById("progressTrack").innerHTML = statuses.map((status, index) => {
     const className = index < request.statusIndex ? "step done" : index === request.statusIndex ? "step current" : "step";
-    return `<span class="${className}" data-label="${status}"></span>`;
+    return `<span class="${className} ${index < request.statusIndex ? 'clickable' : ''}" data-index="${index}" data-label="${status}"></span>`;
   }).join("");
+  document.querySelectorAll("#progressTrack .step.clickable").forEach((el) => {
+    el.addEventListener("click", () => {
+      const idx = parseInt(el.dataset.index);
+      if (idx < request.statusIndex) {
+        request.statusIndex = idx;
+        saveState();
+        renderAll();
+        showToast(`Moved back to ${statuses[idx]}`);
+      }
+    });
+  });
 }
 
 function renderCustomer() {
@@ -531,7 +612,7 @@ function renderCoordinator() {
   document.querySelectorAll(".order-row").forEach((row) => {
     row.addEventListener("click", () => {
       const order = state.marketOrders[Number(row.dataset.order)];
-      document.getElementById("deliveryTech").value = order.assignedTech || "Ravi - Mumbai West";
+      document.getElementById("deliveryTech").value = order.assignedTech || firstApproved("Technician");
       document.getElementById("deliveryAddress").value = order.address || "";
       document.getElementById("deliveryAddress").dataset.editOrder = row.dataset.order;
     });
@@ -539,16 +620,156 @@ function renderCoordinator() {
 }
 
 function syncAssignmentFields() {
+  populateRoleDropdowns();
   const request = activeRequest();
-  document.getElementById("pickupTech").value = request.pickupTech;
-  document.getElementById("repairPartner").value = request.repairPartner;
+  const pt = document.getElementById("pickupTech");
+  if (pt) pt.value = request.pickupTech;
+  const rp = document.getElementById("repairPartner");
+  if (rp) rp.value = request.repairPartner;
+}
+
+function populateRoleDropdowns() {
+  // Ensure test entries are always present
+  const testTech = { name: "Testing Technician", role: "Technician", location: "Test Lab", status: "Approved" };
+  const testRM = { name: "Testing RepairMaster", role: "RepairMaster", location: "Test Lab", status: "Approved" };
+  if (!state.applications.some(a => a.name === "Testing Technician")) state.applications.push(testTech);
+  if (!state.applications.some(a => a.name === "Testing RepairMaster")) state.applications.push(testRM);
+  saveState();
+
+  const approvedTechs = state.applications
+    .filter(a => a.role === "Technician" && a.status === "Approved");
+  const approvedRMs = state.applications
+    .filter(a => a.role === "RepairMaster" && a.status === "Approved");
+
+  const techOpts = approvedTechs.map(a =>
+    `<option value="${a.name}${a.location ? " — " + a.location : ""}">Technician — ${a.name}${a.location ? " — " + a.location : ""}</option>`
+  ).join("");
+  const rmOpts = approvedRMs.map(a =>
+    `<option value="${a.name}${a.location ? " — " + a.location : ""}">RepairMaster — ${a.name}${a.location ? " — " + a.location : ""}</option>`
+  ).join("");
+
+  const pt = document.getElementById("pickupTech");
+  const dt = document.getElementById("deliveryTech");
+  const rp = document.getElementById("repairPartner");
+
+  if (pt) { pt.innerHTML = techOpts || '<option value="">No approved technicians</option>'; }
+  if (dt) { dt.innerHTML = techOpts || '<option value="">No approved technicians</option>'; }
+  if (rp) { rp.innerHTML = rmOpts || '<option value="">No approved repair partners</option>'; }
+}
+
+function renderRoleSummary() {
+  const request = activeRequest();
+  const portal = state.activePortal;
+  const si = request.statusIndex;
+
+  // Technician summary
+  const techPending = {
+    0: "Awaiting assignment", 1: "Awaiting assignment", 2: "Awaiting assignment", 3: "Awaiting assignment",
+    4: "Device pickup from customer",
+    5: "Handover to RepairMaster",
+    6: "Repair in progress at lab",
+    7: "Repair in progress at lab",
+    8: "Quality check at lab",
+    9: "Invoice pending",
+    10: "Ready for delivery",
+    11: "Delivery to customer",
+    12: "Delivery confirmation",
+    13: "Completed"
+  };
+  const techNext = {
+    0: "—", 1: "—", 2: "—", 3: "—",
+    4: "Collect device & verify OTP",
+    5: "Complete handover checklist",
+    6: "Wait for repair completion",
+    7: "Wait for repair completion",
+    8: "Wait for QC completion",
+    9: "Wait for payment",
+    10: "Wait for delivery assignment",
+    11: "Deliver device to customer",
+    12: "Confirm delivery with customer",
+    13: "All done"
+  };
+  const rmPending = {
+    0: "Awaiting device from technician", 1: "Awaiting device from technician",
+    2: "Awaiting device from technician", 3: "Awaiting device from technician",
+    4: "Device pickup scheduled",
+    5: "Device received — needs diagnosis",
+    6: "Diagnosis in progress",
+    7: "Repair in progress",
+    8: "Quality check in progress",
+    9: "Waiting for customer payment",
+    10: "Ready for delivery",
+    11: "Delivery in progress",
+    12: "Completed",
+    13: "Completed"
+  };
+  const rmNext = {
+    0: "—", 1: "—", 2: "—", 3: "—",
+    4: "Receive device from technician",
+    5: "Run diagnosis on device",
+    6: "Complete diagnosis & send quotation",
+    7: "Complete repair & run QC",
+    8: "Pass QC & send invoice",
+    9: "Wait for payment confirmation",
+    10: "Assign delivery technician",
+    11: "Track delivery",
+    12: "All done", 13: "All done"
+  };
+
+  // Count marketplace deliveries pending for current technician
+  const techName = state.activeUser ? state.activeUser.name : "";
+  const pendingDeliveries = state.marketOrders.filter(o =>
+    o.assignedTech && o.assignedTech.includes(techName) && o.statusIndex < 4
+  ).length;
+
+  // Update notification badge on bell icon
+  const badge = document.getElementById("mbNotifBadge");
+  if (badge) {
+    const totalPending = pendingDeliveries + (si < 13 ? 1 : 0);
+    if (totalPending > 0) {
+      badge.textContent = totalPending;
+      badge.style.display = "grid";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+
+  // Update technician summary
+  const tJob = document.getElementById("techSummaryJob");
+  if (tJob) {
+    tJob.textContent = request.id + " · " + request.model;
+    document.getElementById("techSummaryStatus").textContent = statuses[si] || "Active";
+    document.getElementById("techSummaryPending").textContent = techPending[si] || "—";
+    document.getElementById("techSummaryNext").textContent = techNext[si] || "—";
+    if (pendingDeliveries > 0) {
+      document.getElementById("techSummaryPending").textContent += ` + ${pendingDeliveries} delivery(ies)`;
+    }
+  }
+
+  // Update repairmaster summary
+  const rJob = document.getElementById("rmSummaryJob");
+  if (rJob) {
+    rJob.textContent = request.id + " · " + request.model;
+    document.getElementById("rmSummaryStatus").textContent = statuses[si] || "Active";
+    document.getElementById("rmSummaryPending").textContent = rmPending[si] || "—";
+    document.getElementById("rmSummaryNext").textContent = rmNext[si] || "—";
+    // Count sold items awaiting pickup
+    const partnerName = request.repairPartner || "";
+    const pendingSold = state.marketOrders.filter(o =>
+      o.repairMaster === partnerName && o.statusIndex < 4
+    ).length;
+    if (pendingSold > 0) {
+      document.getElementById("rmSummaryPending").textContent += ` + ${pendingSold} sale(s) awaiting pickup`;
+    }
+  }
 }
 
 function renderTechnician() {
   const request = activeRequest();
   const isDelivery = request.statusIndex >= 11;
+  const techName = state.activeUser ? state.activeUser.name : request.pickupTech || "Technician";
   document.getElementById("techJobTitle").textContent = `${isDelivery ? "Delivery" : "Pickup"} ${request.id}`;
-  document.getElementById("techJobMeta").textContent = `${request.customer} | ${request.address} | ${request.model}`;
+  document.getElementById("techJobMeta").textContent = `${techName} → ${request.customer} | ${request.address} | ${request.model}`;
   const techPreviews = document.getElementById("techConditionPreviews");
   if (techPreviews) {
     if (request.conditionImages.length) {
@@ -618,6 +839,13 @@ function renderTechnician() {
 }
 
 function renderRepairMaster() {
+  // Show current repair partner on the bench card
+  const rmTitle = document.querySelector("#repairmaster .diagnosis-card h2");
+  if (rmTitle) {
+    const partnerName = state.activeUser ? state.activeUser.name : (activeRequest().repairPartner || "RepairMaster");
+    rmTitle.textContent = `Repair bench — ${partnerName}`;
+  }
+
   // Render dynamic parts grid
   const grid = document.getElementById("partsGrid");
   if (grid) {
@@ -734,7 +962,7 @@ function renderAdmin() {
     return;
   }
   document.getElementById("techPerformanceList").innerHTML = techNames.map((name) => {
-    const assigned = state.requests.filter((r) => r.pickupTech === name);
+    const assigned = state.requests.filter((r) => (r.pickupTech || '').startsWith(name + ' \u2014') || (r.pickupTech || '').startsWith(name + ' -') || r.pickupTech === name);
     const total = assigned.length;
     const completed = assigned.filter((r) => r.statusIndex >= 11).length;
     const active = assigned.filter((r) => r.statusIndex >= 1 && r.statusIndex < 11).length;
@@ -826,13 +1054,16 @@ function renderMarketplace() {
       const item = state.marketplace[index];
       if (item && !item.sold) {
         item.sold = true;
+        const buyerName = state.activeUser ? state.activeUser.name : "Marketplace Buyer";
+        const buyerId = state.activeUser ? state.activeUser.email : "";
         const orderId = `MO-${1001 + state.marketOrders.length}`;
         state.marketOrders.unshift({
           id: orderId,
           itemModel: item.model,
           grade: item.grade,
           basePrice: item.basePrice,
-          customer: "Marketplace Buyer",
+          customer: buyerName,
+          customerEmail: buyerId,
           repairMaster: item.owner,
           statusIndex: 0,
           assignedTech: "",
@@ -876,9 +1107,11 @@ function renderHotDeals() {
 function renderAll() {
   renderHotDeals();
   applyPortalAccess();
+  updateTopbarUser();
   renderProgress();
   renderCustomer();
   renderCoordinator();
+  renderRoleSummary();
   renderTechnician();
   renderRepairMaster();
   renderAdmin();
@@ -921,44 +1154,80 @@ document.getElementById("unifiedLoginForm").addEventListener("submit", (event) =
 document.querySelectorAll("[data-employee-role]").forEach((form) => {
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    const roleKey = form.dataset.employeeRole;
-    const roleLabel = roleKey === "repairmaster" ? "RepairMaster" : roleKey.charAt(0).toUpperCase() + roleKey.slice(1);
+    const portal = form.dataset.employeeRole;
+    const roleLabel = portal === "repairmaster" ? "RepairMaster" : portal.charAt(0).toUpperCase() + portal.slice(1);
     const [nameInput, locationSelect] = form.querySelectorAll("input, select");
     const name = nameInput.value.trim();
     if (!name) {
       showToast("Please enter your full name");
       return;
     }
-    state.applications.unshift({
-      name,
-      role: roleLabel,
-      location: locationSelect.value,
-      status: "Pending"
-    });
+    let app = state.applications.find(a => a.name === name && a.role === roleLabel);
+    if (!app) {
+      state.applications.unshift({ name, role: roleLabel, location: locationSelect.value, status: "Approved" });
+    } else {
+      app.status = "Approved";
+    }
     saveState();
-    renderHotDeals();
-    showToast(`${roleLabel} application submitted for ${locationSelect.value}`);
+    state.activeUser = { name, email: name.toLowerCase().replace(/\s+/g, ".") + "@test.com", role: portal };
+    loginPortal(portal);
   });
 });
 
-document.getElementById("logoutButton").addEventListener("click", logoutPortal);
-document.getElementById("sidebarLogoutBtn").addEventListener("click", logoutPortal);
+document.getElementById("userAvatarBtn").addEventListener("click", openAccountOverlay);
+document.getElementById("accountCloseBtn").addEventListener("click", closeAccountOverlay);
+document.getElementById("accountOverlayScrim").addEventListener("click", closeAccountOverlay);
+document.getElementById("accountLogoutBtn").addEventListener("click", () => { closeAccountOverlay(); logoutPortal(); });
+document.getElementById("backBtn").addEventListener("click", () => switchView(allowedViews()[0] || "customer"));
+document.getElementById("mbHomeBtn").addEventListener("click", () => switchView(allowedViews()[0] || "customer"));
+document.getElementById("mbNotifBtn").addEventListener("click", () => {
+  const r = activeRequest();
+  const si = r.statusIndex;
+  const techName = state.activeUser ? state.activeUser.name : "";
+  const pendingDeliveries = state.marketOrders.filter(o =>
+    o.assignedTech && o.assignedTech.includes(techName) && o.statusIndex < 4
+  ).length;
+  const msg = pendingDeliveries > 0
+    ? `${r.id}: ${statuses[si]} · ${pendingDeliveries} delivery(ies) pending`
+    : `${r.id}: ${statuses[si]} — next: ${statuses[Math.min(si + 1, statuses.length - 1)]}`;
+  showToast(msg);
+});
+document.getElementById("mbAccountBtn").addEventListener("click", openAccountOverlay);
 
 document.getElementById("advanceStatus").addEventListener("click", () => {
   const request = activeRequest();
-  if (request.statusIndex >= statuses.length - 1) {
+  const current = request.statusIndex;
+  if (current >= statuses.length - 1) {
     showToast("Repair lifecycle is already complete");
     return;
   }
-  if (request.statusIndex === 9 && !request.paymentMethod) {
+  const next = current + 1;
+  const nextStatus = statuses[next];
+  if (next === 4 && !request.pickupTech) {
+    showToast("Assign a pickup technician before scheduling pickup");
+    return;
+  }
+  if (next === 5 && !request.otpVerified) {
+    showToast("OTP must be verified before marking device picked up");
+    return;
+  }
+  if (next === 7 && !request.repairPartner) {
+    showToast("Assign a RepairMaster before starting repair");
+    return;
+  }
+  if (next === 10 && !request.paymentMethod) {
     showToast("Customer must select a payment method first");
     return;
   }
-  request.statusIndex = Math.min(request.statusIndex + 1, statuses.length - 1);
-  if (request.statusIndex === 9) request.invoiceSent = true;
+  if (next === 11 && request.paymentStatus !== "Paid") {
+    showToast("Payment must be completed before ready for delivery");
+    return;
+  }
+  request.statusIndex = next;
+  if (next === 9) request.invoiceSent = true;
   saveState();
   renderAll();
-  showToast(`${request.id} moved to ${statuses[request.statusIndex]}`);
+  showToast(`${request.id} → ${nextStatus}`);
 });
 
 document.getElementById("resetDemo").addEventListener("click", () => {
@@ -990,8 +1259,8 @@ document.getElementById("serviceForm").addEventListener("submit", (event) => {
     issue,
     address,
     statusIndex: 0,
-    pickupTech: "Ravi - Mumbai West",
-    repairPartner: "FixHub Andheri",
+    pickupTech: firstApproved("Technician"),
+    repairPartner: firstApproved("RepairMaster"),
     quoteAmount: 0,
     quoteApproved: false,
     paymentStatus: "Pending",
@@ -1315,3 +1584,8 @@ if (state.activePortal) {
 }
 
 renderAll();
+
+// Clear any stale URL hash (no hash routing in this app)
+if (window.location.hash) {
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
