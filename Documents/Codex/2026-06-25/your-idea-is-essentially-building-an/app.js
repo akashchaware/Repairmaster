@@ -428,6 +428,7 @@ function closeAccountOverlay() {
 
 function logoutPortal() {
   state.activePortal = null;
+  state.activeUser = null;
   document.getElementById("userTopInfo").innerHTML = "";
   saveState();
   document.getElementById("appShell").classList.add("hidden");
