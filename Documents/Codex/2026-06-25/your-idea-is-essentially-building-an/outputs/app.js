@@ -2702,6 +2702,11 @@ function initLoginUI() {
 }
 
 // Testing login — global function called from HTML onclick
+window.handleGoogleLogin = async function handleGoogleLogin() {
+  const { error } = await supabase.auth.signInWithOAuth({ provider: 'google' });
+  if (error) showToast(error.message);
+};
+
 const TEST_CREDS = {
   admin:        { email: 'admin@test.repairmaster',  password: 'test123', role: 'admin' },
   coordinator:  { email: 'coord@test.repairmaster',  password: 'test123', role: 'coordinator' },
@@ -2760,21 +2765,31 @@ if (document.readyState === 'loading') {
   const pageMap = { customer: 'customer.html', coordinator: 'coordinator.html', technician: 'technician.html', repairmaster: 'repairmaster.html', admin: 'admin.html', marketplace: 'marketplace.html' };
 
   if (session) {
-    const profile = await fetchProfile(session.user.id);
+    let profile = await fetchProfile(session.user.id);
+    if (!profile) {
+      const meta = session.user.user_metadata || {};
+      const newProfile = {
+        id: session.user.id,
+        email: session.user.email || meta.email || '',
+        name: meta.full_name || meta.name || session.user.email?.split('@')[0] || 'User',
+        phone: '',
+        role: 'customer',
+        city: ''
+      };
+      await supabase.from('profiles').upsert(newProfile);
+      profile = newProfile;
+    }
     if (profile && profile.role) {
       state.activeUser = profile;
       state.activePortal = profile.role;
       state.activeView = portalLanding[profile.role] || 'customer';
 
       if (IS_LOGIN_PAGE) {
-        // On login page but already logged in — redirect to role page
         window.location.href = pageMap[profile.role] || 'customer.html';
         return;
       }
 
-      // On role page — verify correct role, render
       if (PAGE_ROLE && profile.role !== PAGE_ROLE && PAGE_ROLE !== 'marketplace') {
-        // Wrong role page — redirect to correct one
         window.location.href = pageMap[profile.role] || 'login.html';
         return;
       }
@@ -2785,11 +2800,9 @@ if (document.readyState === 'loading') {
     }
   }
 
-  // No session
   if (IS_LOGIN_PAGE) {
     renderAll();
   } else {
-    // On role page without session — redirect to login
     window.location.href = 'login.html';
   }
 })();

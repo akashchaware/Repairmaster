@@ -149,6 +149,26 @@ button {
   margin-top: 4px;
 }
 
+.divider {
+  display: flex; align-items: center; gap: 12px; margin: 16px 0;
+  color: #9eb5c1; font-size: 13px;
+}
+.divider::before,
+.divider::after {
+  content: ''; flex: 1; height: 1px; background: #355061;
+}
+
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; padding: 12px; border-radius: 8px;
+  background: #ffffff; color: #333;
+  font-size: 15px; font-weight: 500; cursor: pointer;
+  border: 1px solid #dadce0;
+}
+.google-btn:hover {
+  background: #f8f9fa;
+}
+
 .apply-links {
   margin-top: auto;
   padding-top: 20px;
