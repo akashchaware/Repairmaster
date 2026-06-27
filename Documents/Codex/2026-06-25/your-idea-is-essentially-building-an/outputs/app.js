@@ -350,7 +350,7 @@ function switchView(view) {
 
   document.getElementById("operationSelect").value = nextView;
   document.getElementById("pageTitle").textContent = titles[nextView];
-  document.getElementById("advanceStatus").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
+  document.getElementById("advanceStatus").classList.toggle("hidden", ["marketplace", "admin", "coordinator"].includes(nextView));
   document.querySelector(".status-strip").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
   saveState();
 }

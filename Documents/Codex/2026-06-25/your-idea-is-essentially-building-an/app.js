@@ -319,7 +319,7 @@ function switchView(view) {
   document.getElementById("operationSelect").value = nextView;
   const req = activeRequest();
   document.getElementById("pageTitle").textContent = titles[nextView] + (req ? ` — ${req.id}` : "");
-  document.getElementById("advanceStatus").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
+  document.getElementById("advanceStatus").classList.toggle("hidden", ["marketplace", "admin", "coordinator"].includes(nextView));
   document.querySelector(".status-strip").classList.toggle("hidden", ["marketplace", "admin"].includes(nextView));
   updateUserTopInfo();
   saveState();
